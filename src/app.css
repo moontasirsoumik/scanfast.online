@@ -1,0 +1,242 @@
+/* ScanFast AMOLED Dark Theme — Carbon g100 base with overrides */
+
+/* ── Background & Layers ── */
+:root {
+	--cds-background: #000000;
+	--cds-layer-01: #0d0d0d;
+	--cds-layer-02: #1a1a1a;
+	--cds-layer-03: #262626;
+	--cds-field-01: #0d0d0d;
+	--cds-field-02: #1a1a1a;
+
+	/* ── Borders ── */
+	--cds-border-subtle-01: #262626;
+	--cds-border-subtle-02: #393939;
+	--cds-border-strong-01: #6f6f6f;
+	--cds-border-interactive: #0f62fe;
+
+	/* ── Text ── */
+	--cds-text-primary: #f4f4f4;
+	--cds-text-secondary: #c6c6c6;
+	--cds-text-placeholder: #6f6f6f;
+	--cds-text-on-color: #ffffff;
+	--cds-text-error: #ff8389;
+	--cds-text-disabled: #525252;
+
+	/* ── Interactive ── */
+	--cds-interactive: #0f62fe;
+	--cds-focus: #0f62fe;
+	--cds-link-primary: #78a9ff;
+	--cds-link-primary-hover: #a6c8ff;
+	--cds-highlight: #001d6c;
+
+	/* ── Support ── */
+	--cds-support-error: #ff8389;
+	--cds-support-success: #42be65;
+	--cds-support-warning: #f1c21b;
+	--cds-support-info: #4589ff;
+
+	/* ── Buttons ── */
+	--cds-button-primary: #0f62fe;
+	--cds-button-primary-hover: #0353e9;
+	--cds-button-secondary: #6f6f6f;
+	--cds-button-secondary-hover: #606060;
+	--cds-button-tertiary: #ffffff;
+	--cds-button-danger-primary: #da1e28;
+
+	/* ── Icons ── */
+	--cds-icon-primary: #f4f4f4;
+	--cds-icon-secondary: #c6c6c6;
+	--cds-icon-interactive: #0f62fe;
+	--cds-icon-on-color: #ffffff;
+	--cds-icon-disabled: #525252;
+
+	/* ── Overlay ── */
+	--cds-overlay: rgba(0, 0, 0, 0.7);
+
+	/* ── Hover states ── */
+	--cds-background-hover: rgba(141, 141, 141, 0.12);
+	--cds-background-active: rgba(141, 141, 141, 0.5);
+	--cds-background-selected: rgba(141, 141, 141, 0.2);
+	--cds-background-selected-hover: rgba(141, 141, 141, 0.32);
+	--cds-layer-hover-01: #1a1a1a;
+	--cds-layer-hover-02: #262626;
+	--cds-layer-active-01: #525252;
+	--cds-layer-active-02: #525252;
+	--cds-layer-selected-01: #393939;
+	--cds-layer-selected-02: #393939;
+
+	/* ── Toggle ── */
+	--cds-toggle-off: #6f6f6f;
+
+	/* ── Skeleton ── */
+	--cds-skeleton-element: #393939;
+	--cds-skeleton-background: #0d0d0d;
+
+	/* ── Typography ── */
+	--sf-font-heading: 'Outfit Variable', 'Outfit', sans-serif;
+	--sf-font-body: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', sans-serif;
+	--sf-font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+
+	/* ── Border Radius ── */
+	--sf-radius-sm: 8px;
+	--sf-radius-md: 12px;
+	--sf-radius-lg: 16px;
+	--sf-radius-pill: 100px;
+}
+
+/* ── Global resets ── */
+html,
+body {
+	margin: 0;
+	padding: 0;
+	background: #000000;
+	color: #f4f4f4;
+	font-family: var(--sf-font-body);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Flat design enforcement ── */
+*,
+*::before,
+*::after {
+	box-shadow: none !important;
+	text-shadow: none !important;
+}
+
+/* ── Carbon font override ── */
+.bx--body,
+.bx--content,
+.bx--grid,
+body {
+	font-family: var(--sf-font-body);
+}
+
+/* ── Heading font overrides ── */
+h1, h2, h3, h4, h5, h6,
+.bx--productive-heading-01,
+.bx--productive-heading-02,
+.bx--productive-heading-03,
+.bx--productive-heading-04,
+.bx--productive-heading-05,
+.bx--productive-heading-06,
+.bx--productive-heading-07,
+.bx--expressive-heading-01,
+.bx--expressive-heading-02,
+.bx--expressive-heading-03,
+.bx--expressive-heading-04,
+.bx--expressive-heading-05,
+.bx--expressive-heading-06 {
+	font-family: var(--sf-font-heading);
+}
+
+/* ── Monospace font override ── */
+code, pre, .bx--snippet {
+	font-family: var(--sf-font-mono);
+}
+
+/* ── Border radius: Cards/Tiles ── */
+.bx--tile,
+.bx--tile--clickable,
+.bx--tile--expandable,
+.bx--tile--selectable {
+	border-radius: var(--sf-radius-md);
+}
+
+/* ── Border radius: Buttons ── */
+.bx--btn {
+	border-radius: var(--sf-radius-sm);
+}
+
+/* ── Border radius: Tags (pill) ── */
+.bx--tag {
+	border-radius: var(--sf-radius-pill);
+}
+
+/* ── Border radius: Inputs/Dropdowns ── */
+.bx--text-input,
+.bx--text-area,
+.bx--select-input,
+.bx--dropdown,
+.bx--number input,
+.bx--search-input,
+.bx--file__drop-container {
+	border-radius: var(--sf-radius-sm);
+}
+
+/* ── Border radius: Notifications ── */
+.bx--inline-notification,
+.bx--toast-notification {
+	border-radius: var(--sf-radius-sm);
+}
+
+/* ── Border radius: Modals ── */
+.bx--modal-container {
+	border-radius: var(--sf-radius-lg);
+}
+
+/* ── Border radius: Overflow/Tooltip ── */
+.bx--overflow-menu-options,
+.bx--tooltip {
+	border-radius: var(--sf-radius-sm);
+}
+
+/* ── Border radius: Dropdown list ── */
+.bx--dropdown__list,
+.bx--list-box__menu {
+	border-radius: var(--sf-radius-sm);
+}
+
+/* ── Border radius: Toggle ── */
+.bx--toggle__appearance::before {
+	border-radius: var(--sf-radius-pill);
+}
+
+/* ── Header shell: AMOLED black ── */
+.bx--header {
+	background-color: #0d0d0d;
+	border-bottom: 1px solid #262626;
+}
+
+.bx--side-nav,
+.bx--side-nav__navigation {
+	background-color: #0d0d0d;
+}
+
+/* ── Content area ── */
+.bx--content {
+	background: #000000;
+	padding: 0;
+}
+
+/* ── Scrollbar: dark ── */
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+::-webkit-scrollbar-track {
+	background: #000000;
+}
+
+::-webkit-scrollbar-thumb {
+	background: #393939;
+	border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: #525252;
+}
+
+/* ── Selection color ── */
+::selection {
+	background: #0f62fe;
+	color: #ffffff;
+}
+
+/* ── Focus visible override for accessibility ── */
+:focus-visible {
+	outline: 2px solid #0f62fe;
+	outline-offset: 2px;
+}
