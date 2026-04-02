@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+.svelte-kit/
+build/
+dist/
+.cloudflare/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== INTERNAL FILES — NEVER PUSH =====
+# Agent definitions
+.github/agents/
+.github/prompts/
+.github/instructions/
+.github/copilot-instructions.md
+*.agent.md
+*.prompt.md
+*.instructions.md
+
+# Internal planning & progress
+.internal/
+
+# Debug logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Wrangler
+.wrangler/
