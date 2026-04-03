@@ -25,12 +25,41 @@
   flex: 1;
 }
 
+/* Mobile: horizontal scroll, icon + label stacked */
 @media (max-width: 671px) {
   .toolbar {
-    gap: 2px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+    padding: 8px;
+    gap: 4px;
   }
 
-  .btn-label {
+  .toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .toolbar .cds--btn {
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 12px;
+    min-width: 56px;
+    white-space: nowrap;
+    font-size: 0.6875rem;
+  }
+
+  /* Stack: icon on top, text below */
+  .toolbar .cds--btn svg {
+    margin: 0;
+  }
+
+  .toolbar-divider {
+    display: none;
+  }
+
+  .toolbar-spacer {
     display: none;
   }
 }

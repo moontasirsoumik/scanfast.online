@@ -208,3 +208,14 @@
 .preview-image.zoomed {
   transition: none;
 }
+
+@media (max-width: 671px) {
+  .preview-toolbar {
+    flex-wrap: nowrap;
+    justify-content: space-evenly;
+  }
+  .preview-toolbar .cds--btn {
+    font-size: 0.75rem;
+    padding: 8px 12px;
+  }
+}

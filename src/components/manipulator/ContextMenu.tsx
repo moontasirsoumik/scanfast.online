@@ -53,16 +53,16 @@ export default function ContextMenu({
       <div className="context-menu-backdrop" onClick={onClose} />
       <div className="context-menu" ref={menuRef} style={adjustedStyle()} role="menu">
         <button className="context-menu-item" role="menuitem" onClick={() => handle(onRotate)}>
-          <Rotate size={16} /> Rotate
+          <Rotate size={16} /> Rotate Page
         </button>
         <button className="context-menu-item" role="menuitem" onClick={() => handle(onDuplicate)}>
-          <Copy size={16} /> Duplicate
+          <Copy size={16} /> Copy Page
         </button>
         <button className="context-menu-item" role="menuitem" onClick={() => handle(onInsertBlank)}>
-          <DocumentBlank size={16} /> Insert Blank After
+          <DocumentBlank size={16} /> Insert Blank Page
         </button>
         <button className="context-menu-item danger" role="menuitem" onClick={() => handle(onDelete)}>
-          <TrashCan size={16} /> Delete
+          <TrashCan size={16} /> Delete Page
         </button>
       </div>
     </>

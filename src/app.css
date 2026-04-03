@@ -238,17 +238,3 @@ code, pre, .cds--snippet {
 .brand-tld {
 	color: var(--cds-interactive, #0f62fe);
 }
-
-/* ── High Contrast Mode ── */
-[data-carbon-theme="g90"] {
-	--cds-background: #161616;
-	--cds-layer-01: #262626;
-	--cds-layer-02: #393939;
-	--cds-text-primary: #ffffff;
-	--cds-text-secondary: #e0e0e0;
-	--cds-border-subtle-01: #525252;
-	--cds-border-strong-01: #8d8d8d;
-	--cds-interactive: #4589ff;
-	--cds-focus: #ffffff;
-	--cds-link-primary: #78a9ff;
-}

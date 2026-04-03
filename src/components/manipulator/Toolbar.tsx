@@ -52,34 +52,34 @@ export default function Toolbar({
     <div className="toolbar" role="toolbar" aria-label="Page operations" aria-orientation="horizontal">
       <div className="toolbar-group">
         <Button kind="ghost" size="sm" renderIcon={DocumentAdd} iconDescription="Add files" disabled={isLoading} onClick={onAdd}>
-          <span className="btn-label">Add</span>
+          Add Files
         </Button>
         <Button kind="ghost" size="sm" renderIcon={CheckboxChecked} iconDescription="Select all" disabled={noPages} onClick={onSelectAll}>
-          <span className="btn-label">Select All</span>
+          Select All
         </Button>
       </div>
       <div className="toolbar-divider" />
       <div className="toolbar-group">
         <Button kind="ghost" size="sm" renderIcon={Rotate} iconDescription="Rotate" disabled={noSelection} onClick={onRotate}>
-          <span className="btn-label">Rotate</span>
+          Rotate
         </Button>
-        <Button kind="ghost" size="sm" renderIcon={Copy} iconDescription="Duplicate" disabled={noSelection} onClick={onDuplicate}>
-          <span className="btn-label">Duplicate</span>
+        <Button kind="ghost" size="sm" renderIcon={Copy} iconDescription="Copy page" disabled={noSelection} onClick={onDuplicate}>
+          Copy Page
         </Button>
-        <Button kind="ghost" size="sm" renderIcon={DocumentBlank} iconDescription="Insert blank page" disabled={atPageLimit || isLoading} onClick={onInsertBlank}>
-          <span className="btn-label">Blank</span>
+        <Button kind="ghost" size="sm" renderIcon={DocumentBlank} iconDescription="Add blank page" disabled={atPageLimit || isLoading} onClick={onInsertBlank}>
+          Add Blank
         </Button>
         <Button kind="ghost" size="sm" renderIcon={TrashCan} iconDescription="Delete" disabled={noSelection} onClick={onDelete}>
-          <span className="btn-label">Delete</span>
+          Delete
         </Button>
       </div>
       <div className="toolbar-divider" />
       <div className="toolbar-group">
-        <Button kind="ghost" size="sm" renderIcon={SplitScreen} iconDescription="Split" disabled={noPages} onClick={onSplit}>
-          <span className="btn-label">Split</span>
+        <Button kind="ghost" size="sm" renderIcon={SplitScreen} iconDescription="Split PDF" disabled={noPages} onClick={onSplit}>
+          Split PDF
         </Button>
         <Button kind="ghost" size="sm" renderIcon={Minimize} iconDescription="Compress" disabled={noSelection} onClick={onCompress}>
-          <span className="btn-label">Compress</span>
+          Compress
         </Button>
       </div>
       <div className="toolbar-spacer" />
@@ -89,13 +89,13 @@ export default function Toolbar({
       </div>
       <div className="toolbar-group">
         <Button kind="primary" size="sm" renderIcon={Download} disabled={noPages || isLoading} onClick={onExport}>
-          <span className="btn-label">Export</span>
+          Save PDF
         </Button>
         <Button kind="ghost" size="sm" renderIcon={Printer} iconDescription="Print" disabled={noPages || isLoading} onClick={onPrint}>
-          <span className="btn-label">Print</span>
+          Print
         </Button>
         <Button kind="ghost" size="sm" renderIcon={Share} iconDescription="Share" disabled={noPages || isLoading} onClick={onShare}>
-          <span className="btn-label">Share</span>
+          Share
         </Button>
       </div>
     </div>
