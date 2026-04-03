@@ -15,7 +15,7 @@ export default function HomePage() {
       <section className="hero">
         <h1>ScanFast<span className="brand-tld">Online</span></h1>
         <p className="hero-sub">
-          Scan documents, manipulate PDFs. Free, offline, no sign-up.
+          Scan documents and edit PDFs — right in your browser. Free and private.
         </p>
         <div className="hero-tags">
           <Tag type="blue">Offline-capable</Tag>
@@ -34,8 +34,8 @@ export default function HomePage() {
                 </div>
                 <h2>Scanner</h2>
                 <p>
-                  Scan documents with your camera or import from gallery.
-                  Auto-detect edges, crop, apply filters, and save as PDF or JPEG.
+                  Use your phone camera to scan documents, or pick photos from your gallery.
+                  Straighten, crop, and enhance — then save as PDF.
                 </p>
                 <div className="card-action">
                   Open Scanner <ArrowRight size={16} />
@@ -53,8 +53,8 @@ export default function HomePage() {
                 </div>
                 <h2>PDF Manipulator</h2>
                 <p>
-                  Merge, split, rotate, reorder, delete, and compress PDF pages.
-                  All in one session, fully chainable with undo/redo.
+                  Combine PDFs, rearrange pages, rotate, split, and compress.
+                  Everything happens on your device — nothing gets uploaded.
                 </p>
                 <div className="card-action">
                   Open Manipulator <ArrowRight size={16} />
@@ -70,20 +70,20 @@ export default function HomePage() {
           <Column sm={4} md={8} lg={16}>
             <div className="features-grid">
               <div className="feature">
-                <strong>No ads. No logins.</strong>
-                <span>Just open and use. Nothing gets in the way.</span>
+                <strong>No sign-up needed</strong>
+                <span>Just open the app and start using it.</span>
               </div>
               <div className="feature">
-                <strong>Works offline</strong>
-                <span>After first load, everything runs in your browser.</span>
+                <strong>Works without internet</strong>
+                <span>Everything runs locally in your browser.</span>
               </div>
               <div className="feature">
-                <strong>Your data stays local</strong>
-                <span>Nothing uploaded. Nothing tracked. Ever.</span>
+                <strong>100% private</strong>
+                <span>Your documents never leave your device.</span>
               </div>
               <div className="feature">
-                <strong>20 pages per session</strong>
-                <span>Scan, merge, split — fast enough for everyday use.</span>
+                <strong>Fast and lightweight</strong>
+                <span>Scan up to 20 pages in a single session.</span>
               </div>
             </div>
           </Column>

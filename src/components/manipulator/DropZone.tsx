@@ -63,9 +63,9 @@ export default function DropZone({ maxPages, onFiles }: DropZoneProps) {
       >
         <div className="drop-zone-content">
           <DocumentAdd size={48} />
-          <p className="drop-label">Drop PDF or image files here, or click to browse</p>
-          <span className="drop-hint">Supported: PDF, JPEG, PNG, WebP</span>
-          <span className="drop-hint-small">Up to {maxPages} pages per session — all processing happens in your browser</span>
+          <p className="drop-label">Tap here to add PDF or image files</p>
+          <span className="drop-hint">You can add PDF, JPEG, PNG, or WebP files</span>
+          <span className="drop-hint-small">Up to {maxPages} pages. Everything stays on your device.</span>
         </div>
       </div>
     </>

@@ -366,7 +366,7 @@ export default function ScannerPage() {
             ) : (
               <div className="empty-gallery">
                 <DocumentPdf size={48} />
-                <p>No scanned pages yet</p>
+                <p>You haven't scanned anything yet</p>
                 <span>Scan or import images to get started. Up to {MAX_PAGES} pages per session.</span>
               </div>
             )}
@@ -431,10 +431,10 @@ export default function ScannerPage() {
 
             <div className="preview-toolbar">
               <Button kind="ghost" size="sm" renderIcon={Undo} onClick={handleRetake}>
-                {cameFromCamera ? 'Retake' : 'Back'}
+                {cameFromCamera ? 'Retake' : '← Back'}
               </Button>
               <Button kind="ghost" size="sm" renderIcon={Crop} onClick={handleToggleCrop}>
-                {cropMode ? 'Cancel Crop' : 'Crop'}
+                {cropMode ? 'Cancel' : 'Adjust Corners'}
               </Button>
               <Button
                 kind="primary"
@@ -443,7 +443,7 @@ export default function ScannerPage() {
                 disabled={isProcessing || !previewUrl}
                 onClick={handleSavePage}
               >
-                Add Page
+                Save Page
               </Button>
             </div>
           </>
@@ -458,10 +458,10 @@ export default function ScannerPage() {
 
             <div className="gallery-actions">
               <Button kind="tertiary" size="sm" renderIcon={Scan} onClick={handleScanMore}>
-                Scan More
+                Scan Another Page
               </Button>
               <Button kind="ghost" size="sm" renderIcon={Add} onClick={handleImportClick}>
-                Import More
+                Import Image
               </Button>
             </div>
 

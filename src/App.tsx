@@ -17,7 +17,7 @@ import {
   Theme,
   Loading
 } from '@carbon/react';
-import { Scan, DocumentPdf, Information, Light, Asleep, Contrast, WifiOff } from '@carbon/icons-react';
+import { Scan, DocumentPdf, Information, Light, Asleep, WifiOff } from '@carbon/icons-react';
 import Toast from '@/components/shared/Toast';
 import { useManipulatorStore } from '@/stores/manipulator';
 import { useScannerStore } from '@/stores/scanner';
@@ -30,7 +30,7 @@ const AboutPage = lazy(() => import('@/pages/AboutPage'));
 
 /** Root application component with Carbon UIShell and routing */
 export default function App() {
-  const [theme, setTheme] = useState<'g100' | 'white' | 'g90'>('g100');
+  const [theme, setTheme] = useState<'g100' | 'white'>('g100');
   const [isOnline, setIsOnline] = useState(true);
 
   const manipulatorPages = useManipulatorStore((s) => s.pages);
@@ -38,7 +38,7 @@ export default function App() {
   const hasUnsavedWork = manipulatorPages.length > 0 || scannerPages.length > 0;
 
   const toggleTheme = useCallback(() => {
-    setTheme((t) => (t === 'g100' ? 'white' : t === 'white' ? 'g90' : 'g100'));
+    setTheme((t) => (t === 'g100' ? 'white' : 'g100'));
   }, []);
 
   // Sync theme to <html> so body/scrollbar/root CSS picks up the right tokens
@@ -106,10 +106,10 @@ export default function App() {
                   </div>
                 )}
                 <HeaderGlobalAction
-                  aria-label={theme === 'g100' ? 'Switch to light mode' : theme === 'white' ? 'Switch to high contrast' : 'Switch to dark mode'}
+                  aria-label={theme === 'g100' ? 'Switch to light mode' : 'Switch to dark mode'}
                   onClick={toggleTheme}
                 >
-                  {theme === 'g100' ? <Light size={20} /> : theme === 'white' ? <Contrast size={20} /> : <Asleep size={20} />}
+                  {theme === 'g100' ? <Light size={20} /> : <Asleep size={20} />}
                 </HeaderGlobalAction>
               </HeaderGlobalBar>
 
