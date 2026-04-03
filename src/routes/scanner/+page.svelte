@@ -21,6 +21,7 @@
 		captureImage,
 		setFilter,
 		setRotation,
+		setStraighten,
 		setCrop,
 		savePage,
 		editPage,
@@ -29,7 +30,7 @@
 		MAX_PAGES
 	} from '$lib/stores/scanner.svelte';
 	import { addToast } from '$lib/stores/toast.svelte';
-	import { processPage } from '$lib/services/filters';
+	import { processPage, readExifOrientation, exifOrientationToDegrees } from '$lib/services/filters';
 	import { downloadBlob, loadFiles } from '$lib/services/pdf';
 
 	/** Tracks where user came from before entering preview */
@@ -53,12 +54,13 @@
 		const filter = scanner.currentFilter;
 		const rotation = scanner.currentRotation;
 		const crop = scanner.currentCrop;
+		const straightenVal = scanner.currentStraighten;
 		if (!img) {
 			previewUrl = '';
 			return;
 		}
 		scanner.isProcessing = true;
-		processPage(img, filter, rotation, crop).then((result) => {
+		processPage(img, filter, rotation, crop, straightenVal).then((result) => {
 			previewUrl = result.dataUrl;
 			scanner.isProcessing = false;
 		});
@@ -78,9 +80,15 @@
 
 	// --- Handlers ---
 
-	function handleCapture(blob: Blob) {
+	async function handleCapture(blob: Blob) {
 		cameFromCamera = true;
 		captureImage(blob);
+		const orientation = await readExifOrientation(blob);
+		const degrees = exifOrientationToDegrees(orientation);
+		if (degrees !== 0) {
+			setRotation(degrees);
+			addToast({ kind: 'info', title: 'Auto-rotated from EXIF', subtitle: `Rotated ${degrees}°` });
+		}
 	}
 
 	function handleCameraClose() {
@@ -97,6 +105,13 @@
 		if (file) {
 			cameFromCamera = false;
 			captureImage(file);
+			readExifOrientation(file).then((orientation) => {
+				const degrees = exifOrientationToDegrees(orientation);
+				if (degrees !== 0) {
+					setRotation(degrees);
+					addToast({ kind: 'info', title: 'Auto-rotated from EXIF', subtitle: `Rotated ${degrees}°` });
+				}
+			});
 		}
 		input.value = '';
 	}
@@ -113,7 +128,8 @@
 				scanner.currentImage,
 				scanner.currentFilter,
 				scanner.currentRotation,
-				scanner.currentCrop
+				scanner.currentCrop,
+				scanner.currentStraighten
 			);
 			savePage(result.dataUrl, result.thumbnail);
 			cropMode = false;
@@ -215,6 +231,26 @@
 	function handleScanMore() {
 		setView('camera');
 	}
+
+	async function handleExportImages() {
+		if (scanner.pages.length === 0) return;
+		scanner.isProcessing = true;
+		try {
+			for (let i = 0; i < scanner.pages.length; i++) {
+				const page = scanner.pages[i];
+				const resp = await fetch(page.processedDataUrl);
+				const blob = await resp.blob();
+				downloadBlob(blob, `scanfast-page-${i + 1}.jpg`);
+			}
+			if (scanner.pages.length >= 3) {
+				addToast({ kind: 'success', title: 'Images exported', subtitle: `${scanner.pages.length} images downloaded.` });
+			}
+		} catch (err) {
+			addToast({ kind: 'error', title: 'Export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+		} finally {
+			scanner.isProcessing = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -268,6 +304,7 @@
 						onedit={handleEditPage}
 						ondelete={handleDeletePage}
 						onexport={handleExport}
+						onexportimages={handleExportImages}
 						onmanipulator={handleOpenManipulator}
 					/>
 				</section>
@@ -310,7 +347,9 @@
 			<div class="preview-controls">
 				<RotationControls
 					rotation={scanner.currentRotation}
+					straighten={scanner.currentStraighten}
 					onrotate={(deg) => setRotation(deg)}
+					onstraighten={(deg) => setStraighten(deg)}
 				/>
 
 				{#if scanner.currentImage}
@@ -368,6 +407,7 @@
 					onedit={handleEditPage}
 					ondelete={handleDeletePage}
 					onexport={handleExport}
+					onexportimages={handleExportImages}
 					onmanipulator={handleOpenManipulator}
 				/>
 			</section>

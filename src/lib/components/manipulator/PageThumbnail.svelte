@@ -6,15 +6,62 @@
 		index: number;
 		selected: boolean;
 		onclick: (e: MouseEvent) => void;
+		onlongpress?: () => void;
 	}
 
-	let { page, index, selected, onclick }: Props = $props();
+	let { page, index, selected, onclick, onlongpress }: Props = $props();
+
+	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+	let longPressFired = false;
+
+	function handleTouchStart() {
+		longPressFired = false;
+		longPressTimer = setTimeout(() => {
+			longPressFired = true;
+			navigator.vibrate?.(50);
+			onlongpress?.();
+		}, 500);
+	}
+
+	function clearLongPress() {
+		if (longPressTimer) {
+			clearTimeout(longPressTimer);
+			longPressTimer = null;
+		}
+	}
+
+	function handleClick(e: MouseEvent) {
+		if (longPressFired) {
+			longPressFired = false;
+			return;
+		}
+		onclick(e);
+	}
+
+	/** Truncate filename for badge display */
+	function truncName(name: string, max = 12): string {
+		if (name.length <= max) return name;
+		const ext = name.lastIndexOf('.');
+		if (ext > 0 && name.length - ext <= 5) {
+			const stem = name.slice(0, ext);
+			const suffix = name.slice(ext);
+			return stem.slice(0, max - suffix.length - 1) + '…' + suffix;
+		}
+		return name.slice(0, max - 1) + '…';
+	}
+
+	let showSourceBadge = $derived(page.sourceFile !== 'blank');
+	let badgeLabel = $derived(truncName(page.sourceFile));
 </script>
 
 <button
 	class="thumb"
 	class:selected
-	onclick={onclick}
+	onclick={handleClick}
+	ontouchstart={handleTouchStart}
+	ontouchend={clearLongPress}
+	ontouchmove={clearLongPress}
+	ontouchcancel={clearLongPress}
 	title="{page.sourceFile} — Page {index + 1}"
 	aria-label="Page {index + 1} — {page.sourceFile}"
 	aria-pressed={selected}
@@ -28,7 +75,9 @@
 		/>
 	</div>
 	<span class="thumb-number">{index + 1}</span>
-	<span class="thumb-name">{page.sourceFile}</span>
+	{#if showSourceBadge}
+		<span class="source-badge" title={page.sourceFile}>{badgeLabel}</span>
+	{/if}
 </button>
 
 <style>
@@ -99,13 +148,23 @@
 		line-height: 1;
 	}
 
-	.thumb-name {
+	.source-badge {
+		position: absolute;
+		bottom: 8px;
+		left: 50%;
+		transform: translateX(-50%);
 		font-family: var(--sf-font-body);
-		font-size: 0.625rem;
-		color: var(--cds-text-placeholder, #6f6f6f);
-		text-overflow: ellipsis;
-		overflow: hidden;
+		font-size: 0.5625rem;
+		color: var(--cds-text-secondary, #c6c6c6);
+		background: var(--cds-layer-02, #1a1a1a);
+		border: 1px solid var(--cds-border-subtle-01, #262626);
+		padding: 1px 6px;
+		border-radius: 2px;
 		white-space: nowrap;
-		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: calc(100% - 16px);
+		line-height: 1.4;
+		pointer-events: none;
 	}
 </style>

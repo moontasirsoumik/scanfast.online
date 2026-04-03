@@ -1,9 +1,12 @@
 <script lang="ts">
+	import { dndzone } from 'svelte-dnd-action';
 	import { Button } from 'carbon-components-svelte';
 	import Download from 'carbon-icons-svelte/lib/Download.svelte';
+	import Image from 'carbon-icons-svelte/lib/Image.svelte';
 	import ArrowRight from 'carbon-icons-svelte/lib/ArrowRight.svelte';
 	import Close from 'carbon-icons-svelte/lib/Close.svelte';
 	import type { ScannedPage } from '$lib/stores/scanner.svelte';
+	import { reorderPages } from '$lib/stores/scanner.svelte';
 
 	interface Props {
 		pages: ScannedPage[];
@@ -11,10 +14,21 @@
 		onedit: (id: string) => void;
 		ondelete: (id: string) => void;
 		onexport: () => void;
+		onexportimages?: () => void;
 		onmanipulator: () => void;
 	}
 
-	let { pages, maxPages, onedit, ondelete, onexport, onmanipulator }: Props = $props();
+	let { pages, maxPages, onedit, ondelete, onexport, onexportimages, onmanipulator }: Props = $props();
+
+	const flipDurationMs = 200;
+
+	function handleDndConsider(e: CustomEvent<{ items: ScannedPage[] }>) {
+		pages = e.detail.items;
+	}
+
+	function handleDndFinalize(e: CustomEvent<{ items: ScannedPage[] }>) {
+		reorderPages(e.detail.items);
+	}
 </script>
 
 <div class="page-gallery">
@@ -27,7 +41,13 @@
 			{pages.length} / {maxPages} pages
 		</div>
 
-		<div class="thumbnail-strip" role="list">
+		<div
+			class="thumbnail-strip"
+			role="list"
+			use:dndzone={{ items: pages, flipDurationMs, type: 'scanner-pages' }}
+			onconsider={handleDndConsider}
+			onfinalize={handleDndFinalize}
+		>
 			{#each pages as page, i (page.id)}
 				<div
 					class="thumb-card"
@@ -54,6 +74,11 @@
 			<Button kind="primary" size="small" icon={Download} on:click={onexport}>
 				Export as PDF
 			</Button>
+			{#if onexportimages}
+				<Button kind="tertiary" size="small" icon={Image} on:click={onexportimages}>
+					Save as Images
+				</Button>
+			{/if}
 			<Button kind="secondary" size="small" icon={ArrowRight} on:click={onmanipulator}>
 				Open in Manipulator
 			</Button>

@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { Grid, Row, Column, Tag } from 'carbon-components-svelte';
-	import { loadFiles, exportAsPdf, renderRotatedThumbnail, downloadBlob, type PageData } from '$lib/services/pdf';
+	import { loadFiles, exportAsPdf, splitPdf, compressPages, renderRotatedThumbnail, downloadBlob, createBlankPageData, type PageData } from '$lib/services/pdf';
+	import SplitDialog from '$lib/components/manipulator/SplitDialog.svelte';
+	import type { SplitGroup } from '$lib/components/manipulator/SplitDialog.svelte';
+	import CompressDialog from '$lib/components/manipulator/CompressDialog.svelte';
 	import * as store from '$lib/stores/manipulator.svelte';
 	import * as history from '$lib/stores/history.svelte';
 	import { addToast } from '$lib/stores/toast.svelte';
@@ -9,6 +12,8 @@
 	import DropZone from '$lib/components/manipulator/DropZone.svelte';
 
 	let fileInput: HTMLInputElement | undefined = $state();
+	let splitDialogOpen = $state(false);
+	let compressDialogOpen = $state(false);
 
 	let pageCount = $derived(store.workspace.pages.length);
 	let selectedCount = $derived(store.workspace.selectedIds.size);
@@ -110,6 +115,31 @@
 		});
 	}
 
+	// --- Insert blank page ---
+	async function handleInsertBlank() {
+		if (store.workspace.pages.length >= store.MAX_PAGES) return;
+		const snapshot = [...store.workspace.pages];
+
+		// Insert after the last selected page, or at end
+		const selected = [...store.workspace.selectedIds];
+		let afterIndex: number | undefined;
+		if (selected.length > 0) {
+			const indices = selected.map(id => store.workspace.pages.findIndex(p => p.id === id)).filter(i => i !== -1);
+			afterIndex = Math.max(...indices);
+		}
+
+		const blankPage = await store.insertBlankPage(afterIndex);
+		if (!blankPage) return;
+
+		// Record undo as restoring snapshot
+		history.state.undoStack = [...history.state.undoStack, {
+			description: 'Insert blank page',
+			execute: () => { store.insertBlankPage(afterIndex); },
+			undo: () => { store.setPages(snapshot); },
+		}].slice(-20);
+		history.state.redoStack = [];
+	}
+
 	// --- Reorder ---
 	function handleReorder(newPages: PageData[]) {
 		const snapshot = [...store.workspace.pages];
@@ -135,6 +165,63 @@
 		}
 	}
 
+	// --- Print ---
+	async function handlePrint() {
+		store.setLoading(true);
+		try {
+			const pdfBytes = await exportAsPdf(store.workspace.pages);
+			const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+			const url = URL.createObjectURL(blob);
+			const iframe = document.createElement('iframe');
+			iframe.style.position = 'fixed';
+			iframe.style.left = '-9999px';
+			iframe.style.top = '-9999px';
+			iframe.style.width = '0';
+			iframe.style.height = '0';
+			iframe.src = url;
+			document.body.appendChild(iframe);
+			iframe.onload = () => {
+				setTimeout(() => {
+					iframe.contentWindow?.print();
+					setTimeout(() => {
+						document.body.removeChild(iframe);
+						URL.revokeObjectURL(url);
+					}, 1000);
+				}, 250);
+			};
+			addToast({ kind: 'info', title: 'Print', subtitle: 'Opening print dialog...' });
+		} catch (err) {
+			addToast({ kind: 'error', title: 'Print failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+		} finally {
+			store.setLoading(false);
+		}
+	}
+
+	// --- Share ---
+	async function handleShare() {
+		store.setLoading(true);
+		try {
+			const pdfBytes = await exportAsPdf(store.workspace.pages);
+			const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+
+			const file = new File([blob], 'scanfast-output.pdf', { type: 'application/pdf' });
+			const shareData = { files: [file], title: 'ScanFast PDF' };
+
+			if (typeof navigator.canShare === 'function' && navigator.canShare(shareData)) {
+				await navigator.share(shareData);
+				addToast({ kind: 'success', title: 'Shared', subtitle: 'PDF shared successfully.' });
+			} else {
+				downloadBlob(blob, 'scanfast-output.pdf');
+				addToast({ kind: 'info', title: 'Sharing not supported', subtitle: 'PDF downloaded instead.' });
+			}
+		} catch (err) {
+			if (err instanceof Error && err.name === 'AbortError') return;
+			addToast({ kind: 'error', title: 'Share failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+		} finally {
+			store.setLoading(false);
+		}
+	}
+
 	// --- Selection ---
 	function handleSelect(id: string, e: MouseEvent) {
 		if (e.shiftKey) {
@@ -146,9 +233,57 @@
 		}
 	}
 
-	// --- Stubs for unimplemented features ---
-	function handleSplit() { /* TODO: Phase 2.6 */ }
-	function handleCompress() { /* TODO: Phase 2.7 */ }
+	// --- Split ---
+	function handleSplit() {
+		splitDialogOpen = true;
+	}
+
+	async function handleSplitConfirm(groups: SplitGroup[]) {
+		splitDialogOpen = false;
+		store.setLoading(true);
+		try {
+			const results = await splitPdf(store.workspace.pages, groups);
+			for (const { name, blob } of results) {
+				downloadBlob(blob, `${name}.pdf`);
+			}
+			addToast({ kind: 'success', title: 'Split complete', subtitle: `${results.length} PDFs downloaded.` });
+		} catch (err) {
+			addToast({ kind: 'error', title: 'Split failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+		} finally {
+			store.setLoading(false);
+		}
+	}
+
+	// --- Compress ---
+	function handleCompress() {
+		if (store.workspace.selectedIds.size === 0) return;
+		compressDialogOpen = true;
+	}
+
+	async function handleCompressConfirm(quality: number) {
+		compressDialogOpen = false;
+		store.setLoading(true);
+		try {
+			const snapshot = [...store.workspace.pages];
+			const ids = new Set(store.workspace.selectedIds);
+			const oldSize = snapshot.filter(p => ids.has(p.id)).reduce((s, p) => s + p.data.byteLength, 0);
+			const result = await compressPages(store.workspace.pages, ids, quality);
+			const newSize = result.filter(p => ids.has(p.id)).reduce((s, p) => s + p.data.byteLength, 0);
+			const saved = oldSize > 0 ? Math.round(((oldSize - newSize) / oldSize) * 100) : 0;
+
+			history.execute({
+				description: `Compress ${ids.size} page(s)`,
+				execute: () => { store.setPages(result); },
+				undo: () => { store.setPages(snapshot); },
+			});
+
+			addToast({ kind: 'success', title: 'Compression complete', subtitle: `Reduced by ~${saved}%` });
+		} catch (err) {
+			addToast({ kind: 'error', title: 'Compression failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+		} finally {
+			store.setLoading(false);
+		}
+	}
 
 	// --- Keyboard shortcuts ---
 	function handleKeydown(e: KeyboardEvent) {
@@ -226,15 +361,19 @@
 					canUndo={history.state.canUndo}
 					canRedo={history.state.canRedo}
 					isLoading={store.workspace.isLoading}
+					maxPages={store.MAX_PAGES}
 					onadd={openFilePicker}
 					onrotate={handleRotate}
 					onduplicate={handleDuplicate}
+					oninsertblank={handleInsertBlank}
 					ondelete={handleDelete}
 					onsplit={handleSplit}
 					oncompress={handleCompress}
 					onundo={() => history.undo()}
 					onredo={() => history.redo()}
 					onexport={handleExport}
+					onprint={handlePrint}
+					onshare={handleShare}
 					onselectall={() => store.selectAll()}
 				/>
 			</Column>
@@ -259,6 +398,7 @@
 						selectedIds={store.workspace.selectedIds}
 						onselect={handleSelect}
 						onreorder={handleReorder}
+						onlongpress={(id) => store.toggleSelect(id, true)}
 					/>
 					<DropZone maxPages={store.MAX_PAGES} onfiles={handleFiles} />
 				{/if}
@@ -266,6 +406,21 @@
 		</Row>
 	</Grid>
 </div>
+
+<SplitDialog
+	pages={store.workspace.pages}
+	open={splitDialogOpen}
+	onclose={() => { splitDialogOpen = false; }}
+	onsplit={handleSplitConfirm}
+/>
+
+<CompressDialog
+	pages={store.workspace.pages}
+	selectedIds={store.workspace.selectedIds}
+	open={compressDialogOpen}
+	onclose={() => { compressDialogOpen = false; }}
+	oncompress={handleCompressConfirm}
+/>
 
 <style>
 	.manipulator-page {

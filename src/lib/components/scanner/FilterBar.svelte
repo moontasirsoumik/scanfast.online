@@ -15,7 +15,8 @@
 		{ type: 'enhance', label: 'Enhance' },
 		{ type: 'bw', label: 'B&W' },
 		{ type: 'grayscale', label: 'Gray' },
-		{ type: 'sharpen', label: 'Sharpen' }
+		{ type: 'sharpen', label: 'Sharpen' },
+		{ type: 'color', label: 'Color' }
 	];
 
 	let previews = $state<Map<FilterType, string>>(new Map());

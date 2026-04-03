@@ -1,6 +1,16 @@
-import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 
 export default defineConfig({
-	plugins: [sveltekit()]
+	plugins: [react()],
+	resolve: {
+		alias: {
+			'@': path.resolve(__dirname, './src')
+		}
+	},
+	build: {
+		outDir: 'build',
+		sourcemap: true
+	}
 });

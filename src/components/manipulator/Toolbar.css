@@ -1,0 +1,36 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+  border-top: 1px solid var(--cds-border-subtle-01, #262626);
+  border-bottom: 1px solid var(--cds-border-subtle-01, #262626);
+  flex-wrap: wrap;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--cds-border-subtle-01, #262626);
+  margin: 0 4px;
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+@media (max-width: 671px) {
+  .toolbar {
+    gap: 2px;
+  }
+
+  .btn-label {
+    display: none;
+  }
+}

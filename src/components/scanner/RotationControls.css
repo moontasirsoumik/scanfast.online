@@ -1,0 +1,72 @@
+.rotation-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.rotation-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.rotation-badge {
+  font-family: var(--sf-font-body);
+  font-size: 0.75rem;
+  color: var(--cds-text-on-color, #fff);
+  background: var(--cds-interactive, #0f62fe);
+  padding: 2px 8px;
+  border-radius: 24px;
+  line-height: 1.2;
+  margin-left: 0.25rem;
+}
+
+.straighten-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.straighten-slider {
+  flex: 1;
+  min-width: 0;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--cds-border-subtle-01, #262626);
+  outline: none;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.straighten-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--cds-interactive, #0f62fe);
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.straighten-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--cds-interactive, #0f62fe);
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.straighten-label {
+  font-family: var(--sf-font-body);
+  font-size: 0.75rem;
+  color: var(--cds-text-secondary, #c6c6c6);
+  min-width: 3rem;
+  text-align: right;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}

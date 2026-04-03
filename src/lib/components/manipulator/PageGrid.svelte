@@ -8,9 +8,10 @@
 		selectedIds: Set<string>;
 		onselect: (id: string, e: MouseEvent) => void;
 		onreorder: (newPages: PageData[]) => void;
+		onlongpress?: (id: string) => void;
 	}
 
-	let { pages, selectedIds, onselect, onreorder }: Props = $props();
+	let { pages, selectedIds, onselect, onreorder, onlongpress }: Props = $props();
 
 	const flipDurationMs = 200;
 
@@ -37,6 +38,7 @@
 			index={i}
 			selected={selectedIds.has(page.id)}
 			onclick={(e) => onselect(page.id, e)}
+			onlongpress={() => onlongpress?.(page.id)}
 		/>
 	{/each}
 </div>
