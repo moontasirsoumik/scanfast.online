@@ -9,7 +9,7 @@ export interface CropRect {
 }
 
 /** Available image filter types */
-export type FilterType = 'original' | 'enhance' | 'bw' | 'grayscale' | 'sharpen';
+export type FilterType = 'original' | 'enhance' | 'bw' | 'grayscale' | 'sharpen' | 'color';
 
 /** Scanner workflow view states */
 export type ScannerView = 'idle' | 'camera' | 'preview' | 'gallery';
@@ -22,6 +22,7 @@ export interface ScannedPage {
 	thumbnail: string;
 	filter: FilterType;
 	rotation: number;
+	straighten: number;
 	cropRect: CropRect | null;
 }
 
@@ -36,6 +37,7 @@ class ScannerState {
 	currentFilter = $state<FilterType>('original');
 	currentRotation = $state<number>(0);
 	currentCrop = $state<CropRect | null>(null);
+	currentStraighten = $state<number>(0);
 	editingPageId = $state<string | null>(null);
 	isProcessing = $state(false);
 	cameraFacing = $state<'user' | 'environment'>('environment');
@@ -54,6 +56,7 @@ export function captureImage(blob: Blob): void {
 	scanner.currentImage = blob;
 	scanner.currentFilter = 'original';
 	scanner.currentRotation = 0;
+	scanner.currentStraighten = 0;
 	scanner.currentCrop = null;
 	scanner.editingPageId = null;
 	scanner.view = 'preview';
@@ -72,6 +75,11 @@ export function setRotation(degrees: number): void {
 /** Set or clear the crop rectangle */
 export function setCrop(rect: CropRect | null): void {
 	scanner.currentCrop = rect;
+}
+
+/** Set the fine straighten angle in degrees (-15 to +15) */
+export function setStraighten(degrees: number): void {
+	scanner.currentStraighten = Math.max(-15, Math.min(15, degrees));
 }
 
 /** Add a scanned page, enforcing the 20-page limit */
@@ -94,6 +102,7 @@ export function editPage(id: string): void {
 	scanner.currentImage = page.originalBlob;
 	scanner.currentFilter = page.filter;
 	scanner.currentRotation = page.rotation;
+	scanner.currentStraighten = page.straighten;
 	scanner.currentCrop = page.cropRect;
 	scanner.editingPageId = id;
 	scanner.view = 'preview';
@@ -110,6 +119,7 @@ export function savePage(processedDataUrl: string, thumbnail: string): void {
 		thumbnail,
 		filter: scanner.currentFilter,
 		rotation: scanner.currentRotation,
+		straighten: scanner.currentStraighten,
 		cropRect: scanner.currentCrop
 	};
 
@@ -136,6 +146,7 @@ export function resetScanner(): void {
 	scanner.currentImage = null;
 	scanner.currentFilter = 'original';
 	scanner.currentRotation = 0;
+	scanner.currentStraighten = 0;
 	scanner.currentCrop = null;
 	scanner.editingPageId = null;
 	scanner.isProcessing = false;
@@ -147,6 +158,7 @@ export function resetPreview(): void {
 	scanner.currentImage = null;
 	scanner.currentFilter = 'original';
 	scanner.currentRotation = 0;
+	scanner.currentStraighten = 0;
 	scanner.currentCrop = null;
 	scanner.editingPageId = null;
 	scanner.isProcessing = false;

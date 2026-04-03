@@ -1,0 +1,53 @@
+.context-menu {
+  position: fixed;
+  z-index: 9000;
+  background: var(--cds-layer-02, #1a1a1a);
+  border: 1px solid var(--cds-border-subtle-02, #393939);
+  border-radius: var(--sf-radius-sm, 8px);
+  padding: 0.25rem 0;
+  min-width: 180px;
+  list-style: none;
+  margin: 0;
+}
+
+.context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 8999;
+  background: transparent;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border: none;
+  background: none;
+  color: var(--cds-text-primary, #f4f4f4);
+  font-family: var(--sf-font-body);
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.context-menu-item:hover,
+.context-menu-item:focus-visible {
+  background: var(--cds-background-hover, rgba(141, 141, 141, 0.12));
+  outline: none;
+}
+
+.context-menu-item svg {
+  color: var(--cds-icon-secondary, #c6c6c6);
+  flex-shrink: 0;
+}
+
+.context-menu-item.danger {
+  color: var(--cds-support-error, #ff8389);
+}
+
+.context-menu-item.danger svg {
+  color: var(--cds-support-error, #ff8389);
+}

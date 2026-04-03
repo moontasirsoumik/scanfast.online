@@ -3,12 +3,15 @@
 	import DocumentAddIcon from 'carbon-icons-svelte/lib/DocumentAdd.svelte';
 	import RotateIcon from 'carbon-icons-svelte/lib/Rotate.svelte';
 	import CopyIcon from 'carbon-icons-svelte/lib/Copy.svelte';
+	import DocumentBlankIcon from 'carbon-icons-svelte/lib/DocumentBlank.svelte';
 	import TrashCanIcon from 'carbon-icons-svelte/lib/TrashCan.svelte';
 	import SplitScreenIcon from 'carbon-icons-svelte/lib/SplitScreen.svelte';
 	import CompressIcon from 'carbon-icons-svelte/lib/Minimize.svelte';
 	import UndoIcon from 'carbon-icons-svelte/lib/Undo.svelte';
 	import RedoIcon from 'carbon-icons-svelte/lib/Redo.svelte';
 	import DownloadIcon from 'carbon-icons-svelte/lib/Download.svelte';
+	import PrinterIcon from 'carbon-icons-svelte/lib/Printer.svelte';
+	import ShareIcon from 'carbon-icons-svelte/lib/Share.svelte';
 	import CheckboxCheckedIcon from 'carbon-icons-svelte/lib/CheckboxChecked.svelte';
 
 	interface Props {
@@ -17,15 +20,19 @@
 		canUndo: boolean;
 		canRedo: boolean;
 		isLoading: boolean;
+		maxPages: number;
 		onadd: () => void;
 		onrotate: () => void;
 		onduplicate: () => void;
+		oninsertblank: () => void;
 		ondelete: () => void;
 		onsplit: () => void;
 		oncompress: () => void;
 		onundo: () => void;
 		onredo: () => void;
 		onexport: () => void;
+		onprint: () => void;
+		onshare: () => void;
 		onselectall: () => void;
 	}
 
@@ -35,17 +42,23 @@
 		canUndo,
 		canRedo,
 		isLoading,
+		maxPages,
 		onadd,
 		onrotate,
 		onduplicate,
+		oninsertblank,
 		ondelete,
 		onsplit,
 		oncompress,
 		onundo,
 		onredo,
 		onexport,
+		onprint,
+		onshare,
 		onselectall
 	}: Props = $props();
+
+	let atPageLimit = $derived(pageCount >= maxPages);
 
 	let noSelection = $derived(selectedCount === 0);
 	let noPages = $derived(pageCount === 0);
@@ -88,6 +101,14 @@
 			disabled={noSelection}
 			on:click={onduplicate}
 		><span class="btn-label">Duplicate</span></Button>
+		<Button
+			kind="ghost"
+			size="small"
+			icon={DocumentBlankIcon}
+			iconDescription="Insert blank page"
+			disabled={atPageLimit || isLoading}
+			on:click={oninsertblank}
+		><span class="btn-label">Blank</span></Button>
 		<Button
 			kind="ghost"
 			size="small"
@@ -143,6 +164,22 @@
 			disabled={noPages || isLoading}
 			on:click={onexport}
 		><span class="btn-label">Export</span></Button>
+		<Button
+			kind="ghost"
+			size="small"
+			icon={PrinterIcon}
+			iconDescription="Print"
+			disabled={noPages || isLoading}
+			on:click={onprint}
+		><span class="btn-label">Print</span></Button>
+		<Button
+			kind="ghost"
+			size="small"
+			icon={ShareIcon}
+			iconDescription="Share"
+			disabled={noPages || isLoading}
+			on:click={onshare}
+		><span class="btn-label">Share</span></Button>
 	</div>
 </div>
 

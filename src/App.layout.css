@@ -1,0 +1,36 @@
+.offline-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.75rem;
+  height: 100%;
+  font-size: 0.75rem;
+  color: var(--cds-support-warning, #f1c21b);
+}
+
+/* Carbon UIShell overrides for @carbon/react */
+.cds--content {
+  background: var(--cds-background);
+  min-height: calc(100vh - 48px);
+  padding: 16px;
+}
+
+.cds--header {
+  background-color: var(--cds-layer-01);
+  border-bottom: 1px solid var(--cds-border-subtle-01);
+}
+
+.cds--header__name {
+  font-family: 'Outfit Variable', 'Outfit', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.cds--side-nav,
+.cds--side-nav__navigation {
+  background-color: var(--cds-layer-01);
+}
+
+.cds--side-nav__link:hover {
+  background-color: var(--cds-layer-hover-01);
+}

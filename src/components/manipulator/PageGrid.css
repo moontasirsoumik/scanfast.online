@@ -1,0 +1,15 @@
+.page-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+  padding-bottom: 32px;
+  min-height: 120px;
+}
+
+@media (max-width: 671px) {
+  .page-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+  }
+}

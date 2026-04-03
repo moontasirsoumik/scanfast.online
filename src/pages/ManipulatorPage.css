@@ -1,0 +1,52 @@
+.manipulator-page {
+  max-width: 1312px;
+  margin: 0 auto;
+}
+
+.manipulator-page .page-header {
+  padding: 32px 0 16px;
+}
+
+.manipulator-page .header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.manipulator-page .page-header h1 {
+  font-family: var(--sf-font-heading);
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+  color: var(--cds-text-primary, #f4f4f4);
+}
+
+.manipulator-page .page-header p {
+  font-family: var(--sf-font-body);
+  font-size: 0.875rem;
+  color: var(--cds-text-secondary, #c6c6c6);
+  margin: 0;
+}
+
+.loading-bar {
+  margin-top: 16px;
+  height: 4px;
+  background: var(--cds-layer-02, #1a1a1a);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.loading-bar-fill {
+  height: 100%;
+  background: var(--cds-interactive, #0f62fe);
+  transition: width 0.3s ease;
+  min-width: 4%;
+}
+
+@media (max-width: 671px) {
+  .manipulator-page .page-header h1 {
+    font-size: 1.25rem;
+  }
+}

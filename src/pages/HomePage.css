@@ -1,0 +1,122 @@
+.landing {
+  max-width: 1312px;
+  margin: 0 auto;
+}
+
+.hero {
+  padding: 64px 16px 48px;
+  text-align: center;
+}
+
+.hero h1 {
+  font-family: var(--sf-font-heading);
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 12px;
+  color: var(--cds-text-primary, #f4f4f4);
+  letter-spacing: -0.03em;
+}
+
+.hero-sub {
+  font-family: var(--sf-font-body);
+  font-size: 1.125rem;
+  line-height: 1.5;
+  color: var(--cds-text-secondary, #c6c6c6);
+  margin: 0 0 24px;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hero-tags {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.card-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.card {
+  padding: 8px 0;
+}
+
+.card-icon {
+  margin-bottom: 16px;
+  color: var(--cds-interactive, #0f62fe);
+}
+
+.card h2 {
+  font-family: var(--sf-font-heading);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: var(--cds-text-primary, #f4f4f4);
+}
+
+.card p {
+  font-family: var(--sf-font-body);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--cds-text-secondary, #c6c6c6);
+  margin: 0 0 16px;
+}
+
+.card-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--sf-font-body);
+  font-size: 0.875rem;
+  color: var(--cds-link-primary, #78a9ff);
+  font-weight: 600;
+}
+
+.card-link .cds--tile--clickable {
+  background-color: var(--cds-layer-01, #0d0d0d);
+  border: 1px solid var(--cds-border-subtle-01, #262626);
+  border-radius: var(--sf-radius-md);
+  min-height: 200px;
+}
+
+.card-link .cds--tile--clickable:hover {
+  background-color: var(--cds-layer-hover-01, #1a1a1a);
+}
+
+.features {
+  padding: 48px 0;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1px;
+  background: var(--cds-border-subtle-01, #262626);
+  border-radius: var(--sf-radius-md);
+  overflow: hidden;
+}
+
+.feature {
+  background: var(--cds-layer-01, #0d0d0d);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.feature strong {
+  font-size: 0.875rem;
+  color: var(--cds-text-primary, #f4f4f4);
+}
+
+.feature span {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--cds-text-secondary, #c6c6c6);
+}

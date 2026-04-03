@@ -1,6 +1,6 @@
 {
-	"name": "ScanFast",
-	"short_name": "ScanFast",
+	"name": "ScanFastOnline",
+	"short_name": "ScanFastOnline",
 	"description": "Free offline document scanner and PDF manipulator. No ads, no logins, no tracking.",
 	"start_url": "/",
 	"display": "standalone",

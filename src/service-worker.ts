@@ -1,20 +1,21 @@
-/// <reference types="@sveltejs/kit" />
 /// <reference no-default-lib="true"/>
 /// <reference lib="esnext" />
 /// <reference lib="webworker" />
 
 declare const self: ServiceWorkerGlobalScope;
 
-import { build, files, version } from '$service-worker';
-
-const CACHE_NAME = `scanfast-${version}`;
-const ASSETS = [...build, ...files];
+const CACHE_NAME = 'scanfast-v1';
 
 self.addEventListener('install', (event) => {
 	event.waitUntil(
 		caches
 			.open(CACHE_NAME)
-			.then((cache) => cache.addAll(ASSETS))
+			.then((cache) => cache.addAll([
+				'/',
+				'/index.html',
+				'/manifest.json',
+				'/pdf.worker.min.mjs'
+			]))
 			.then(() => self.skipWaiting())
 	);
 });
