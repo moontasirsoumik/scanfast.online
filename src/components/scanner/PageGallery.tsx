@@ -15,7 +15,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@carbon/react';
-import { Download, Image as ImageIcon, ArrowRight, Close } from '@carbon/icons-react';
+import { Download, ArrowRight, Close } from '@carbon/icons-react';
 import type { ScannedPage } from '@/stores/scanner';
 import { useScannerStore } from '@/stores/scanner';
 import './PageGallery.css';
@@ -25,8 +25,7 @@ interface PageGalleryProps {
   maxPages: number;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
-  onExport: () => void;
-  onExportImages?: () => void;
+  onOpenExport: () => void;
   onManipulator: () => void;
 }
 
@@ -79,7 +78,7 @@ function SortableThumb({ page, index, onEdit, onDelete }: SortableThumbProps) {
 }
 
 /** Horizontal scrollable page gallery with DnD reorder, export, and manipulator actions */
-export default function PageGallery({ pages, maxPages, onEdit, onDelete, onExport, onExportImages, onManipulator }: PageGalleryProps) {
+export default function PageGallery({ pages, maxPages, onEdit, onDelete, onOpenExport, onManipulator }: PageGalleryProps) {
   const reorderPages = useScannerStore((s) => s.reorderPages);
 
   const sensors = useSensors(
@@ -130,16 +129,11 @@ export default function PageGallery({ pages, maxPages, onEdit, onDelete, onExpor
       </DndContext>
 
       <div className="actions">
-        <Button kind="primary" size="sm" renderIcon={Download} onClick={onExport}>
-          Export as PDF
+        <Button kind="primary" size="sm" renderIcon={Download} onClick={onOpenExport}>
+          Export
         </Button>
-        {onExportImages && (
-          <Button kind="tertiary" size="sm" renderIcon={ImageIcon} onClick={onExportImages}>
-            Save as Images
-          </Button>
-        )}
         <Button kind="secondary" size="sm" renderIcon={ArrowRight} onClick={onManipulator}>
-          Open in Manipulator
+          Open PDF Tools
         </Button>
       </div>
     </div>

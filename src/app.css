@@ -6,6 +6,7 @@
 	--sf-font-heading: 'Outfit Variable', 'Outfit', sans-serif;
 	--sf-font-body: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', sans-serif;
 	--sf-font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+	--sf-mobile-nav-height: 5.5rem;
 
 	/* ── Border Radius ── */
 	--sf-radius-sm: 8px;
@@ -96,6 +97,63 @@ body {
 *::after {
 	box-shadow: none !important;
 	text-shadow: none !important;
+}
+
+button,
+a,
+.cds--btn,
+.cds--tile--clickable,
+.action-card,
+.thumb-card,
+.filter-card,
+.drop-zone,
+.context-menu,
+.mobile-tabbar-link {
+	transition:
+		transform 160ms ease,
+		background-color 160ms ease,
+		border-color 160ms ease,
+		color 160ms ease,
+		opacity 160ms ease;
+}
+
+button:hover,
+a:hover,
+.cds--btn:hover,
+.cds--tile--clickable:hover,
+.action-card:hover,
+.thumb-card:hover,
+.filter-card:hover,
+.drop-zone:hover,
+.mobile-tabbar-link:hover {
+	transform: translateY(-1px);
+}
+
+button:active,
+a:active,
+.cds--btn:active,
+.action-card:active,
+.thumb-card:active,
+.filter-card:active,
+.drop-zone:active,
+.mobile-tabbar-link:active {
+	transform: translateY(0);
+	opacity: 0.92;
+}
+
+.cds--content > * {
+	animation: sf-fade-in 220ms ease;
+}
+
+@keyframes sf-fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
 }
 
 /* ── Carbon font override ── */

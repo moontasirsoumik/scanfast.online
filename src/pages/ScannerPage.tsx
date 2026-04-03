@@ -12,6 +12,7 @@ import CropEditor from '@/components/scanner/CropEditor';
 import FilterBar from '@/components/scanner/FilterBar';
 import RotationControls from '@/components/scanner/RotationControls';
 import PageGallery from '@/components/scanner/PageGallery';
+import ActionSheet from '@/components/shared/ActionSheet';
 import './ScannerPage.css';
 
 /** Scanner page — capture, crop, filter, and manage scanned pages */
@@ -20,8 +21,10 @@ export default function ScannerPage() {
   const [cameFromCamera, setCameFromCamera] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
   const [cropMode, setCropMode] = useState(false);
+  const [draftCrop, setDraftCrop] = useState<QuadCrop | null>(null);
   const [rawImageUrl, setRawImageUrl] = useState('');
   const [previewScale, setPreviewScale] = useState(1.0);
+  const [exportSheetOpen, setExportSheetOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
   const lastTapRef = useRef(0);
@@ -80,6 +83,10 @@ export default function ScannerPage() {
       setRawImageUrl('');
     }
   }, [currentImage]);
+
+  useEffect(() => {
+    setDraftCrop(currentCrop);
+  }, [currentCrop, currentImage, editingPageId]);
 
   // --- Handlers ---
   const handleCapture = useCallback(async (blob: Blob) => {
@@ -145,23 +152,26 @@ export default function ScannerPage() {
 
   const handleRetake = useCallback(() => {
     setCropMode(false);
+    setDraftCrop(null);
     setPreviewScale(1.0);
     resetPreview();
     setView(cameFromCamera ? 'camera' : 'idle');
   }, [cameFromCamera, resetPreview, setView]);
 
   const handleToggleCrop = useCallback(() => {
+    setDraftCrop(currentCrop);
     setCropMode((prev) => !prev);
-  }, []);
+  }, [currentCrop]);
 
   const handleCropConfirm = useCallback(() => {
+    setCrop(draftCrop);
     setCropMode(false);
-  }, []);
+  }, [draftCrop, setCrop]);
 
   const handleCropCancel = useCallback(() => {
-    setCrop(null);
+    setDraftCrop(currentCrop);
     setCropMode(false);
-  }, [setCrop]);
+  }, [currentCrop]);
 
   const handleEditPage = useCallback((id: string) => {
     setCameFromCamera(false);
@@ -351,8 +361,8 @@ export default function ScannerPage() {
               <div className="crop-overlay">
                 <CropEditor
                   imageUrl={rawImageUrl}
-                  initialCrop={currentCrop}
-                  onChange={(crop: QuadCrop) => setCrop(crop)}
+                  initialCrop={draftCrop}
+                  onChange={(crop: QuadCrop) => setDraftCrop(crop)}
                   onConfirm={handleCropConfirm}
                   onCancel={handleCropCancel}
                 />
@@ -381,7 +391,7 @@ export default function ScannerPage() {
                 {cameFromCamera ? 'Retake' : '← Back'}
               </Button>
               <Button kind="ghost" size="sm" renderIcon={Crop} onClick={handleToggleCrop}>
-                {cropMode ? 'Cancel' : 'Crop'}
+                {cropMode ? 'Cancel' : 'Adjust Corners'}
               </Button>
               <Button
                 kind="primary"
@@ -431,8 +441,7 @@ export default function ScannerPage() {
                   maxPages={MAX_PAGES}
                   onEdit={handleEditPage}
                   onDelete={handleDeletePage}
-                  onExport={handleExport}
-                  onExportImages={handleExportImages}
+                  onOpenExport={() => setExportSheetOpen(true)}
                   onManipulator={handleOpenManipulator}
                 />
               </section>
@@ -468,8 +477,7 @@ export default function ScannerPage() {
                 maxPages={MAX_PAGES}
                 onEdit={handleEditPage}
                 onDelete={handleDeletePage}
-                onExport={handleExport}
-                onExportImages={handleExportImages}
+                onOpenExport={() => setExportSheetOpen(true)}
                 onManipulator={handleOpenManipulator}
               />
             </section>
@@ -477,6 +485,26 @@ export default function ScannerPage() {
         )}
       </div>
       )}
+
+      <ActionSheet
+        open={exportSheetOpen}
+        title="Export Scans"
+        onClose={() => setExportSheetOpen(false)}
+        options={[
+          {
+            id: 'export-pdf',
+            label: 'Export as PDF',
+            description: 'Save all pages into one PDF file.',
+            onSelect: handleExport,
+          },
+          {
+            id: 'export-jpg',
+            label: 'Export as JPG files',
+            description: 'Download each page as its own image.',
+            onSelect: handleExportImages,
+          },
+        ]}
+      />
 
       {isProcessing && (
         <div className="processing-overlay">

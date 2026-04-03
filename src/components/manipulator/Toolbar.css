@@ -14,6 +14,11 @@
   gap: 2px;
 }
 
+.toolbar-group--history,
+.toolbar-group--export {
+  flex-shrink: 0;
+}
+
 .toolbar-divider {
   width: 1px;
   height: 24px;
@@ -49,6 +54,10 @@
   .toolbar .cds--btn svg {
     width: 14px;
     height: 14px;
+    flex-shrink: 0;
+  }
+
+  .toolbar-group {
     flex-shrink: 0;
   }
 }
