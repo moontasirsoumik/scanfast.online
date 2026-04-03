@@ -1,0 +1,121 @@
+.action-sheet-root {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+}
+
+.action-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.45);
+  animation: sf-fade-in 180ms ease;
+}
+
+.action-sheet {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: min(100%, 32rem);
+  transform: translateX(-50%);
+  background: var(--cds-layer-01, #0d0d0d);
+  border: 1px solid var(--cds-border-subtle-01, #262626);
+  border-bottom: 0;
+  border-radius: 1rem 1rem 0 0;
+  padding: 0.5rem 0 0.75rem;
+  animation: sf-sheet-up 220ms ease;
+}
+
+.action-sheet-handle {
+  width: 3rem;
+  height: 0.25rem;
+  border-radius: 999px;
+  background: var(--cds-border-strong-01, #6f6f6f);
+  margin: 0 auto 0.5rem;
+}
+
+.action-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 1rem 0.75rem;
+}
+
+.action-sheet-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--cds-text-primary, #f4f4f4);
+}
+
+.action-sheet-close {
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: var(--sf-radius-sm, 8px);
+  background: transparent;
+  color: var(--cds-link-primary, #78a9ff);
+  font: inherit;
+  cursor: pointer;
+}
+
+.action-sheet-options {
+  display: flex;
+  flex-direction: column;
+}
+
+.action-sheet-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  min-height: 56px;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border: 0;
+  background: transparent;
+  color: var(--cds-text-primary, #f4f4f4);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.action-sheet-option:hover,
+.action-sheet-option:focus-visible,
+.action-sheet-close:hover,
+.action-sheet-close:focus-visible {
+  background: var(--cds-background-hover, rgba(141, 141, 141, 0.12));
+  outline: none;
+}
+
+.action-sheet-label {
+  font-size: 0.95rem;
+}
+
+.action-sheet-description {
+  font-size: 0.75rem;
+  color: var(--cds-text-secondary, #c6c6c6);
+}
+
+.action-sheet-option.danger {
+  color: var(--cds-support-error, #ff8389);
+}
+
+@keyframes sf-sheet-up {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@media (min-width: 672px) {
+  .action-sheet {
+    bottom: 1rem;
+    border-bottom: 1px solid var(--cds-border-subtle-01, #262626);
+    border-radius: 1rem;
+  }
+}

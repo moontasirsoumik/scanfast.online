@@ -20,6 +20,7 @@ import DropZone from '@/components/manipulator/DropZone';
 import SplitDialog from '@/components/manipulator/SplitDialog';
 import CompressDialog from '@/components/manipulator/CompressDialog';
 import ContextMenu from '@/components/manipulator/ContextMenu';
+import ActionSheet from '@/components/shared/ActionSheet';
 import './ManipulatorPage.css';
 
 /** SplitGroup type for split dialog */
@@ -32,6 +33,7 @@ export interface SplitGroup {
 export default function ManipulatorPage() {
   const [splitDialogOpen, setSplitDialogOpen] = useState(false);
   const [compressDialogOpen, setCompressDialogOpen] = useState(false);
+  const [exportSheetOpen, setExportSheetOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ open: boolean; x: number; y: number; pageId: string }>({ open: false, x: 0, y: 0, pageId: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -511,9 +513,7 @@ export default function ManipulatorPage() {
               onCompress={handleCompress}
               onUndo={undo}
               onRedo={redo}
-              onExport={handleExport}
-              onPrint={handlePrint}
-              onShare={handleShare}
+              onOpenExportMenu={() => setExportSheetOpen(true)}
               onSelectAll={selectAll}
             />
           </Column>
@@ -575,6 +575,32 @@ export default function ManipulatorPage() {
         onDuplicate={handleContextDuplicate}
         onDelete={handleContextDelete}
         onInsertBlank={handleContextInsertBlank}
+      />
+
+      <ActionSheet
+        open={exportSheetOpen}
+        title="Export PDF"
+        onClose={() => setExportSheetOpen(false)}
+        options={[
+          {
+            id: 'save-pdf',
+            label: 'Save as PDF',
+            description: 'Download one PDF file with all pages.',
+            onSelect: handleExport,
+          },
+          {
+            id: 'print-pdf',
+            label: 'Print',
+            description: 'Open the browser print dialog.',
+            onSelect: handlePrint,
+          },
+          {
+            id: 'share-pdf',
+            label: 'Share',
+            description: 'Use your device share menu if available.',
+            onSelect: handleShare,
+          },
+        ]}
       />
     </>
   );

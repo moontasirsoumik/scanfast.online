@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Close } from '@carbon/icons-react';
 import { useToastStore, type ToastMessage } from '@/stores/toast';
 import './Toast.css';
+import ActionSheet from './ActionSheet'; // Import the new ActionSheet component
 
 const borderColors: Record<ToastMessage['kind'], string> = {
   info: 'var(--cds-support-info, #4589ff)',

@@ -10,9 +10,7 @@ import {
   Minimize,
   Undo,
   Redo,
-  Download,
-  Printer,
-  Share
+  Download
 } from '@carbon/icons-react';
 import './Toolbar.css';
 
@@ -32,9 +30,7 @@ interface ToolbarProps {
   onCompress: () => void;
   onUndo: () => void;
   onRedo: () => void;
-  onExport: () => void;
-  onPrint: () => void;
-  onShare: () => void;
+  onOpenExportMenu: () => void;
   onSelectAll: () => void;
 }
 
@@ -42,7 +38,7 @@ interface ToolbarProps {
 export default function Toolbar({
   pageCount, selectedCount, canUndo, canRedo, isLoading, maxPages,
   onAdd, onRotate, onDuplicate, onInsertBlank, onDelete,
-  onSplit, onCompress, onUndo, onRedo, onExport, onPrint, onShare, onSelectAll
+  onSplit, onCompress, onUndo, onRedo, onOpenExportMenu, onSelectAll
 }: ToolbarProps) {
   const atPageLimit = pageCount >= maxPages;
   const noSelection = selectedCount === 0;
@@ -83,19 +79,13 @@ export default function Toolbar({
         </Button>
       </div>
       <div className="toolbar-spacer" />
-      <div className="toolbar-group">
+      <div className="toolbar-group toolbar-group--history">
         <Button kind="ghost" size="sm" renderIcon={Undo} iconDescription="Undo" disabled={!canUndo} onClick={onUndo} hasIconOnly />
         <Button kind="ghost" size="sm" renderIcon={Redo} iconDescription="Redo" disabled={!canRedo} onClick={onRedo} hasIconOnly />
       </div>
-      <div className="toolbar-group">
-        <Button kind="primary" size="sm" renderIcon={Download} disabled={noPages || isLoading} onClick={onExport}>
-          Save PDF
-        </Button>
-        <Button kind="ghost" size="sm" renderIcon={Printer} iconDescription="Print" disabled={noPages || isLoading} onClick={onPrint}>
-          Print
-        </Button>
-        <Button kind="ghost" size="sm" renderIcon={Share} iconDescription="Share" disabled={noPages || isLoading} onClick={onShare}>
-          Share
+      <div className="toolbar-group toolbar-group--export">
+        <Button kind="primary" size="sm" renderIcon={Download} disabled={noPages || isLoading} onClick={onOpenExportMenu}>
+          Export
         </Button>
       </div>
     </div>

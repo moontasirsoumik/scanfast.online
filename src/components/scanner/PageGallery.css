@@ -101,8 +101,14 @@
 }
 
 .actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
-  flex-wrap: wrap;
   padding: 0.25rem 0;
+}
+
+.actions .cds--btn {
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
 }
