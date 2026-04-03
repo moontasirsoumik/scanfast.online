@@ -1,5 +1,5 @@
 import { Button } from '@carbon/react';
-import { RotateCounterclockwise, Rotate, ReflectHorizontal } from '@carbon/icons-react';
+import { RotateCounterclockwise, RotateClockwise, Reset } from '@carbon/icons-react';
 import './RotationControls.css';
 
 interface RotationControlsProps {
@@ -24,37 +24,14 @@ export default function RotationControls({ rotation, straighten, onRotate, onStr
   return (
     <div className="rotation-controls">
       <div className="rotation-buttons">
-        <Button
-          kind="ghost"
-          size="sm"
-          renderIcon={RotateCounterclockwise}
-          iconDescription="Rotate left 90°"
-          hasIconOnly
-          onClick={rotateLeft}
-        />
-        <Button
-          kind="ghost"
-          size="sm"
-          renderIcon={Rotate}
-          iconDescription="Rotate right 90°"
-          hasIconOnly
-          onClick={rotateRight}
-        />
-        <Button
-          kind="ghost"
-          size="sm"
-          renderIcon={ReflectHorizontal}
-          iconDescription="Flip 180°"
-          hasIconOnly
-          onClick={flip}
-        />
-
-        {rotation !== 0 && (
-          <span className="rotation-badge">{rotation}°</span>
-        )}
+        <Button kind="ghost" size="sm" renderIcon={RotateCounterclockwise} iconDescription="Rotate left 90°" hasIconOnly onClick={rotateLeft} />
+        <Button kind="ghost" size="sm" renderIcon={RotateClockwise} iconDescription="Rotate right 90°" hasIconOnly onClick={rotateRight} />
+        <Button kind="ghost" size="sm" renderIcon={Reset} iconDescription="Flip 180°" hasIconOnly onClick={flip} />
+        {rotation !== 0 && <span className="rotation-badge">{rotation}°</span>}
       </div>
 
       <div className="straighten-row">
+        <span className="straighten-hint">Straighten</span>
         <input
           type="range"
           className="straighten-slider"

@@ -12,7 +12,7 @@ export default function AboutPage() {
   return (
     <div className="about-page">
       <Grid>
-        <Column sm={4} md={8} lg={10}>
+        <Column sm={4} md={8} lg={16}>
           <section className="page-header">
             <h1>About ScanFast<span className="brand-tld">Online</span></h1>
             <p className="lead">
@@ -113,8 +113,8 @@ export default function AboutPage() {
                 <span>PDF rendering</span>
               </div>
               <div className="tech-item">
-                <strong>OpenCV.js</strong>
-                <span>Document scanning</span>
+                <strong>Canvas API</strong>
+                <span>Image processing</span>
               </div>
               <div className="tech-item">
                 <strong>Cloudflare Pages</strong>

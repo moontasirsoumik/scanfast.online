@@ -1,6 +1,7 @@
 .about-page {
-  max-width: 1312px;
+  max-width: 720px;
   margin: 0 auto;
+  padding: 0 1rem;
 }
 
 .about-page .page-header {
@@ -173,11 +174,17 @@
 
 .tech-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 1px;
   background: var(--cds-border-subtle-01, #262626);
   border-radius: var(--sf-radius-md);
   overflow: hidden;
+}
+
+@media (max-width: 480px) {
+  .tech-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .tech-item {
