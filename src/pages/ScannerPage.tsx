@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Loading } from '@carbon/react';
-import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, Undo, Checkmark } from '@carbon/icons-react';
+import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, Checkmark } from '@carbon/icons-react';
 import { useScannerStore, MAX_PAGES, type QuadCrop, type FilterType } from '@/stores/scanner';
 import { useManipulatorStore } from '@/stores/manipulator';
 import { addToast } from '@/stores/toast';
@@ -325,6 +325,79 @@ export default function ScannerPage() {
         onChange={handleFileChange}
       />
 
+      {view === 'preview' && (
+        <div className="preview-layout">
+          <div
+            className="preview-area"
+            onTouchStart={handlePreviewTouchStart}
+            onTouchMove={handlePreviewTouchMove}
+            onTouchEnd={handlePreviewTouchEnd}
+            onTouchCancel={handlePreviewTouchEnd}
+          >
+            {previewUrl ? (
+              <img
+                src={previewUrl}
+                alt="Preview"
+                className={`preview-image${previewScale !== 1 ? ' zoomed' : ''}`}
+                style={{ transform: `scale(${previewScale})` }}
+              />
+            ) : (
+              <div className="preview-loading">
+                <Loading withOverlay={false} small />
+              </div>
+            )}
+
+            {cropMode && rawImageUrl && (
+              <div className="crop-overlay">
+                <CropEditor
+                  imageUrl={rawImageUrl}
+                  initialCrop={currentCrop}
+                  onChange={(crop: QuadCrop) => setCrop(crop)}
+                  onConfirm={handleCropConfirm}
+                  onCancel={handleCropCancel}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="preview-bottom-panel">
+            <RotationControls
+              rotation={currentRotation}
+              straighten={currentStraighten}
+              onRotate={(deg: number) => setRotation(deg)}
+              onStraighten={(deg: number) => setStraighten(deg)}
+            />
+
+            {currentImage && (
+              <FilterBar
+                sourceBlob={currentImage}
+                activeFilter={currentFilter}
+                onSelect={(f: FilterType) => setFilter(f)}
+              />
+            )}
+
+            <div className="preview-actions">
+              <Button kind="ghost" size="sm" onClick={handleRetake}>
+                {cameFromCamera ? 'Retake' : '← Back'}
+              </Button>
+              <Button kind="ghost" size="sm" renderIcon={Crop} onClick={handleToggleCrop}>
+                {cropMode ? 'Cancel' : 'Crop'}
+              </Button>
+              <Button
+                kind="primary"
+                size="sm"
+                renderIcon={Checkmark}
+                disabled={isProcessing || !previewUrl}
+                onClick={handleSavePage}
+              >
+                Save Page
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {view !== 'preview' && (
       <div className="scanner-page">
         {view === 'idle' && (
           <>
@@ -373,82 +446,6 @@ export default function ScannerPage() {
           </>
         )}
 
-        {view === 'preview' && (
-          <>
-            <section className="page-header compact">
-              <h1>Preview</h1>
-            </section>
-
-            <div
-              className="preview-container preview-image-container"
-              onTouchStart={handlePreviewTouchStart}
-              onTouchMove={handlePreviewTouchMove}
-              onTouchEnd={handlePreviewTouchEnd}
-              onTouchCancel={handlePreviewTouchEnd}
-            >
-              {previewUrl ? (
-                <img
-                  src={previewUrl}
-                  alt="Preview"
-                  className={`preview-image${previewScale !== 1 ? ' zoomed' : ''}`}
-                  style={{ transform: `scale(${previewScale})` }}
-                />
-              ) : (
-                <div className="preview-loading">
-                  <Loading withOverlay={false} small />
-                </div>
-              )}
-
-              {cropMode && rawImageUrl && (
-                <div className="crop-overlay">
-                  <CropEditor
-                    imageUrl={rawImageUrl}
-                    initialCrop={currentCrop}
-                    onChange={(crop: QuadCrop) => setCrop(crop)}
-                    onConfirm={handleCropConfirm}
-                    onCancel={handleCropCancel}
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="preview-controls">
-              <RotationControls
-                rotation={currentRotation}
-                straighten={currentStraighten}
-                onRotate={(deg: number) => setRotation(deg)}
-                onStraighten={(deg: number) => setStraighten(deg)}
-              />
-
-              {currentImage && (
-                <FilterBar
-                  sourceBlob={currentImage}
-                  activeFilter={currentFilter}
-                  onSelect={(f: FilterType) => setFilter(f)}
-                />
-              )}
-            </div>
-
-            <div className="preview-toolbar">
-              <Button kind="ghost" size="sm" renderIcon={Undo} onClick={handleRetake}>
-                {cameFromCamera ? 'Retake' : '← Back'}
-              </Button>
-              <Button kind="ghost" size="sm" renderIcon={Crop} onClick={handleToggleCrop}>
-                {cropMode ? 'Cancel' : 'Adjust Corners'}
-              </Button>
-              <Button
-                kind="primary"
-                size="sm"
-                renderIcon={Checkmark}
-                disabled={isProcessing || !previewUrl}
-                onClick={handleSavePage}
-              >
-                Save Page
-              </Button>
-            </div>
-          </>
-        )}
-
         {view === 'gallery' && (
           <>
             <section className="page-header compact">
@@ -479,6 +476,7 @@ export default function ScannerPage() {
           </>
         )}
       </div>
+      )}
 
       {isProcessing && (
         <div className="processing-overlay">
