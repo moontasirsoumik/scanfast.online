@@ -13,7 +13,7 @@
 
 .rotation-badge {
   font-family: var(--sf-font-body);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--cds-text-on-color, #fff);
   background: var(--cds-interactive, #0f62fe);
   padding: 2px 8px;
@@ -30,7 +30,7 @@
 }
 
 .straighten-hint {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: var(--cds-text-placeholder, #6f6f6f);
   white-space: nowrap;
 }
@@ -68,7 +68,7 @@
 
 .straighten-label {
   font-family: var(--sf-font-body);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--cds-text-secondary, #c6c6c6);
   min-width: 3rem;
   text-align: right;

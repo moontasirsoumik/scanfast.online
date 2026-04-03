@@ -26,7 +26,6 @@ const AboutPage = lazy(() => import('@/pages/AboutPage'));
 const navItems = [
   { to: '/scanner', label: 'Scanner', icon: Scan },
   { to: '/manipulator', label: 'PDF Tools', icon: DocumentPdf },
-  { to: '/about', label: 'About', icon: Information },
 ];
 
 /** Root application component with desktop header navigation and a compact mobile dock. */
@@ -34,6 +33,11 @@ export default function App() {
   const location = useLocation();
   const [theme, setTheme] = useState<'g100' | 'white'>('g100');
   const [isOnline, setIsOnline] = useState(true);
+  const isWorkPage = location.pathname === '/scanner' || location.pathname === '/manipulator';
+  const showPersistentMobileTabbar = !isWorkPage;
+  const isAboutPage = location.pathname === '/about';
+  const crossNavTo = location.pathname === '/scanner' ? '/manipulator' : '/scanner';
+  const crossNavLabel = location.pathname === '/scanner' ? 'PDF Tools' : 'Scanner';
 
   const manipulatorPages = useManipulatorStore((s) => s.pages);
   const scannerPages = useScannerStore((s) => s.pages);
@@ -85,9 +89,6 @@ export default function App() {
           <HeaderMenuItem as={Link} to="/manipulator">
             PDF Tools
           </HeaderMenuItem>
-          <HeaderMenuItem as={Link} to="/about">
-            About
-          </HeaderMenuItem>
         </HeaderNavigation>
 
         <HeaderGlobalBar>
@@ -97,6 +98,18 @@ export default function App() {
               <span>Offline</span>
             </div>
           )}
+          {isWorkPage ? (
+            <Link to={crossNavTo} className="header-cross-nav">
+              {crossNavLabel}
+            </Link>
+          ) : null}
+          <Link
+            to="/about"
+            aria-label="About"
+            className={`cds--header__action header-global-link${isAboutPage ? ' is-active' : ''}`}
+          >
+            <Information size={18} />
+          </Link>
           <HeaderGlobalAction
             aria-label={theme === 'g100' ? 'Switch to light mode' : 'Switch to dark mode'}
             onClick={toggleTheme}
@@ -106,7 +119,7 @@ export default function App() {
         </HeaderGlobalBar>
       </Header>
 
-      <Content id="main-content">
+      <Content id="main-content" className={`app-content${showPersistentMobileTabbar ? ' has-mobile-tabbar' : ''}`}>
         <Suspense fallback={<Loading withOverlay={false} />}>
           <Routes>
             <Route path="/" element={<HomePage />} />
@@ -117,24 +130,26 @@ export default function App() {
         </Suspense>
       </Content>
 
-      <nav className="mobile-tabbar" aria-label="Quick navigation">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = location.pathname === item.to;
+      {showPersistentMobileTabbar ? (
+        <nav className="mobile-tabbar" aria-label="Quick navigation">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = location.pathname === item.to;
 
-          return (
-            <Link
-              key={item.to}
-              to={item.to}
-              className={`mobile-tabbar-link${active ? ' is-active' : ''}`}
-              aria-current={active ? 'page' : undefined}
-            >
-              <Icon size={16} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`mobile-tabbar-link${active ? ' is-active' : ''}`}
+                aria-current={active ? 'page' : undefined}
+              >
+                <Icon size={16} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      ) : null}
 
       <Toast />
     </Theme>

@@ -12,6 +12,7 @@ import {
   Redo,
   Download
 } from '@carbon/icons-react';
+import useIsMobile from '@/hooks/useIsMobile';
 import './Toolbar.css';
 
 interface ToolbarProps {
@@ -40,6 +41,7 @@ export default function Toolbar({
   onAdd, onRotate, onDuplicate, onInsertBlank, onDelete,
   onSplit, onCompress, onUndo, onRedo, onOpenExportMenu, onSelectAll
 }: ToolbarProps) {
+  const isMobile = useIsMobile();
   const atPageLimit = pageCount >= maxPages;
   const noSelection = selectedCount === 0;
   const noPages = pageCount === 0;
@@ -84,8 +86,17 @@ export default function Toolbar({
         <Button kind="ghost" size="sm" renderIcon={Redo} iconDescription="Redo" disabled={!canRedo} onClick={onRedo} hasIconOnly />
       </div>
       <div className="toolbar-group toolbar-group--export">
-        <Button kind="primary" size="sm" renderIcon={Download} disabled={noPages || isLoading} onClick={onOpenExportMenu}>
-          Export
+        <Button
+          kind="primary"
+          size="sm"
+          renderIcon={Download}
+          iconDescription="Export"
+          aria-label="Export"
+          hasIconOnly={isMobile}
+          disabled={noPages || isLoading}
+          onClick={onOpenExportMenu}
+        >
+          {!isMobile ? 'Export' : null}
         </Button>
       </div>
     </div>

@@ -44,7 +44,7 @@
 
 .info-card {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
   padding: 24px;
   background: var(--cds-layer-01, #0d0d0d);
@@ -63,14 +63,14 @@
 }
 
 .info-card p {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.5;
   color: var(--cds-text-secondary, #c6c6c6);
   margin: 0 0 8px;
 }
 
 .github-link {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   color: var(--cds-link-primary, #78a9ff);
   text-decoration: none;
   font-family: var(--sf-font-body);
@@ -103,6 +103,7 @@
 .how-list li {
   counter-increment: howstep;
   display: flex;
+  align-items: center;
   gap: 16px;
   padding: 20px;
   background: var(--cds-layer-01, #0d0d0d);
@@ -133,7 +134,7 @@
 }
 
 .how-list li span {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.5;
   color: var(--cds-text-secondary, #c6c6c6);
 }
@@ -152,7 +153,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   color: var(--cds-text-secondary, #c6c6c6);
 }
 
@@ -167,7 +168,7 @@
   border-radius: 4px;
   padding: 2px 6px;
   font-family: var(--sf-font-body);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   min-width: 24px;
   text-align: center;
 }
@@ -201,7 +202,7 @@
 }
 
 .tech-item span {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--cds-text-placeholder, #6f6f6f);
 }
 
@@ -228,7 +229,7 @@
 }
 
 .page-footer p {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--cds-text-placeholder, #6f6f6f);
   margin: 0;
 }

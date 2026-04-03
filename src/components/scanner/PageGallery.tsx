@@ -18,6 +18,7 @@ import { Button } from '@carbon/react';
 import { Download, ArrowRight, Close } from '@carbon/icons-react';
 import type { ScannedPage } from '@/stores/scanner';
 import { useScannerStore } from '@/stores/scanner';
+import useIsMobile from '@/hooks/useIsMobile';
 import './PageGallery.css';
 
 interface PageGalleryProps {
@@ -79,6 +80,7 @@ function SortableThumb({ page, index, onEdit, onDelete }: SortableThumbProps) {
 
 /** Horizontal scrollable page gallery with DnD reorder, export, and manipulator actions */
 export default function PageGallery({ pages, maxPages, onEdit, onDelete, onOpenExport, onManipulator }: PageGalleryProps) {
+  const isMobile = useIsMobile();
   const reorderPages = useScannerStore((s) => s.reorderPages);
 
   const sensors = useSensors(
@@ -129,8 +131,16 @@ export default function PageGallery({ pages, maxPages, onEdit, onDelete, onOpenE
       </DndContext>
 
       <div className="actions">
-        <Button kind="primary" size="sm" renderIcon={Download} onClick={onOpenExport}>
-          Export
+        <Button
+          kind="primary"
+          size="sm"
+          renderIcon={Download}
+          iconDescription="Export"
+          aria-label="Export"
+          hasIconOnly={isMobile}
+          onClick={onOpenExport}
+        >
+          {!isMobile ? 'Export' : null}
         </Button>
         <Button kind="secondary" size="sm" renderIcon={ArrowRight} onClick={onManipulator}>
           Open PDF Tools

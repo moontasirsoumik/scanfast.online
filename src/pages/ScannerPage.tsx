@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Loading } from '@carbon/react';
-import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, Checkmark } from '@carbon/icons-react';
+import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, Download, ArrowLeft } from '@carbon/icons-react';
 import { useScannerStore, MAX_PAGES, type QuadCrop, type FilterType } from '@/stores/scanner';
 import { useManipulatorStore } from '@/stores/manipulator';
 import { addToast } from '@/stores/toast';
@@ -13,11 +13,13 @@ import FilterBar from '@/components/scanner/FilterBar';
 import RotationControls from '@/components/scanner/RotationControls';
 import PageGallery from '@/components/scanner/PageGallery';
 import ActionSheet from '@/components/shared/ActionSheet';
+import useIsMobile from '@/hooks/useIsMobile';
 import './ScannerPage.css';
 
 /** Scanner page — capture, crop, filter, and manage scanned pages */
 export default function ScannerPage() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [cameFromCamera, setCameFromCamera] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
   const [cropMode, setCropMode] = useState(false);
@@ -387,20 +389,39 @@ export default function ScannerPage() {
             )}
 
             <div className="preview-actions">
-              <Button kind="ghost" size="sm" onClick={handleRetake}>
-                {cameFromCamera ? 'Retake' : '← Back'}
+              <Button
+                kind="ghost"
+                size="sm"
+                renderIcon={ArrowLeft}
+                iconDescription={cameFromCamera ? 'Retake' : 'Back'}
+                aria-label={cameFromCamera ? 'Retake' : 'Back'}
+                hasIconOnly={isMobile}
+                onClick={handleRetake}
+              >
+                {!isMobile ? (cameFromCamera ? 'Retake' : 'Back') : null}
               </Button>
-              <Button kind="ghost" size="sm" renderIcon={Crop} onClick={handleToggleCrop}>
-                {cropMode ? 'Cancel' : 'Adjust Corners'}
+              <Button
+                kind="ghost"
+                size="sm"
+                renderIcon={Crop}
+                iconDescription={cropMode ? 'Cancel crop' : 'Adjust corners'}
+                aria-label={cropMode ? 'Cancel crop' : 'Adjust corners'}
+                hasIconOnly={isMobile}
+                onClick={handleToggleCrop}
+              >
+                {!isMobile ? (cropMode ? 'Cancel' : 'Adjust Corners') : null}
               </Button>
               <Button
                 kind="primary"
                 size="sm"
-                renderIcon={Checkmark}
+                renderIcon={Download}
+                iconDescription="Save page"
+                aria-label="Save page"
+                hasIconOnly={isMobile}
                 disabled={isProcessing || !previewUrl}
                 onClick={handleSavePage}
               >
-                Save Page
+                {!isMobile ? 'Save Page' : null}
               </Button>
             </div>
           </div>
