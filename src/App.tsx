@@ -129,7 +129,7 @@ export default function App() {
               className={`mobile-tabbar-link${active ? ' is-active' : ''}`}
               aria-current={active ? 'page' : undefined}
             >
-              <Icon size={18} />
+              <Icon size={16} />
               <span>{item.label}</span>
             </Link>
           );

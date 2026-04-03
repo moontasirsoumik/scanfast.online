@@ -6,7 +6,7 @@
 	--sf-font-heading: 'Outfit Variable', 'Outfit', sans-serif;
 	--sf-font-body: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', sans-serif;
 	--sf-font-mono: 'IBM Plex Mono', 'Courier New', monospace;
-	--sf-mobile-nav-height: 5.5rem;
+--sf-mobile-nav-height: 3.5rem;
 
 	/* ── Border Radius ── */
 	--sf-radius-sm: 8px;
@@ -198,6 +198,9 @@ code, pre, .cds--snippet {
 /* ── Border radius: Buttons ── */
 .cds--btn {
 	border-radius: var(--sf-radius-sm);
+	/* Force vertical centering of icon + text inside all Carbon buttons */
+	display: inline-flex;
+	align-items: center;
 }
 
 /* ── Border radius: Tags (pill) ── */

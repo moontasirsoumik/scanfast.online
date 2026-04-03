@@ -44,6 +44,7 @@
 
 .info-card {
   display: flex;
+  align-items: flex-start;
   gap: 16px;
   padding: 24px;
   background: var(--cds-layer-01, #0d0d0d);
@@ -52,7 +53,6 @@
 .info-icon {
   color: var(--cds-interactive, #0f62fe);
   flex-shrink: 0;
-  padding-top: 2px;
 }
 
 .info-card strong {

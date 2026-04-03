@@ -50,6 +50,12 @@
     white-space: nowrap;
   }
 
+  /* Primary/secondary buttons with renderIcon need extra end-padding
+     because Carbon absolutely-positions the icon at the right edge. */
+  .toolbar .cds--btn:not(.cds--btn--ghost):not(.cds--btn--icon-only) {
+    padding-inline-end: 2.25rem;
+  }
+
   /* Force icon + text inline on mobile, don't stack */
   .toolbar .cds--btn svg {
     width: 14px;

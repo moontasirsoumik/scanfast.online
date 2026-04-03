@@ -110,5 +110,7 @@
 .actions .cds--btn {
   width: 100%;
   min-width: 0;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
 }
