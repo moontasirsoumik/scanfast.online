@@ -30,7 +30,12 @@ const navItems = [
 /** Root application component with desktop header navigation and a compact mobile dock. */
 export default function App() {
   const location = useLocation();
-  const [theme, setTheme] = useState<'g100' | 'white'>('g100');
+  const [theme, setTheme] = useState<'g100' | 'white'>(() => {
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: light)').matches) {
+      return 'white';
+    }
+    return 'g100';
+  });
   const [isOnline, setIsOnline] = useState(true);
   const isWorkPage = location.pathname === '/scanner' || location.pathname === '/manipulator';
   const showPersistentMobileTabbar = !isWorkPage;

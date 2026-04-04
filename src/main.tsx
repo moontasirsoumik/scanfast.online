@@ -23,7 +23,7 @@ if ('serviceWorker' in navigator) {
   });
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').then((reg) => {
+    navigator.serviceWorker.register('/service-worker.js', { updateViaCache: 'none' }).then((reg) => {
       // If a new SW is already waiting (installed but not yet active),
       // tell it to skip waiting immediately — handles the "revisit" case.
       if (reg.waiting) {

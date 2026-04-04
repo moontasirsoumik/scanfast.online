@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Button, TextInput } from '@carbon/react';
-import { Add, TrashCan } from '@carbon/icons-react';
+import { Button } from '@carbon/react';
+import { Add, TrashCan, SplitScreen } from '@carbon/icons-react';
 import type { PageData } from '@/services/pdf';
 import type { SplitGroup } from '@/pages/ManipulatorPage';
 import './SplitDialog.css';
@@ -25,11 +25,13 @@ const GROUP_COLORS = [
 export default function SplitDialog({ pages, open, onClose, onSplit }: SplitDialogProps) {
   const [groupNames, setGroupNames] = useState<string[]>(['Group 1', 'Group 2']);
   const [pageAssignments, setPageAssignments] = useState<number[]>([]);
+  const [activeGroup, setActiveGroup] = useState(0);
 
   useEffect(() => {
     if (open) {
       setGroupNames(['Group 1', 'Group 2']);
       setPageAssignments(pages.map(() => 0));
+      setActiveGroup(0);
     }
   }, [open, pages]);
 
@@ -60,17 +62,22 @@ export default function SplitDialog({ pages, open, onClose, onSplit }: SplitDial
       return g;
     }));
     setGroupNames(prev => prev.filter((_, i) => i !== index));
+    setActiveGroup(prev => {
+      if (prev === index) return 0;
+      if (prev > index) return prev - 1;
+      return prev;
+    });
   }, [groupNames.length]);
 
   const updateGroupName = useCallback((index: number, value: string) => {
     setGroupNames(prev => prev.map((n, i) => (i === index ? value : n)));
   }, []);
 
-  const cyclePageGroup = useCallback((pageIndex: number) => {
+  const assignPageToActiveGroup = useCallback((pageIndex: number) => {
     setPageAssignments(prev =>
-      prev.map((g, i) => (i === pageIndex ? (g + 1) % groupNames.length : g))
+      prev.map((g, i) => (i === pageIndex ? activeGroup : g))
     );
-  }, [groupNames.length]);
+  }, [activeGroup]);
 
   const handleSplit = useCallback(() => {
     if (!canSplit) return;
@@ -104,21 +111,33 @@ export default function SplitDialog({ pages, open, onClose, onSplit }: SplitDial
 
         <div className="split-body">
           <section className="groups-panel">
-            <h3 className="panel-title">Groups</h3>
+            <h3 className="panel-title">Groups <span className="panel-hint">(tap to select)</span></h3>
             <div className="groups-list">
               {groupNames.map((name, gi) => (
-                <div className="group-row" key={gi}>
-                  <span
-                    className="group-dot"
-                    style={{ background: GROUP_COLORS[gi % GROUP_COLORS.length] }}
-                  />
-                  <TextInput
-                    id={`group-name-${gi}`}
-                    size="sm"
-                    hideLabel
-                    labelText="Group name"
+                <div
+                  className={`group-row${gi === activeGroup ? ' group-row--active' : ''}`}
+                  key={gi}
+                  style={{ '--group-color': GROUP_COLORS[gi % GROUP_COLORS.length] } as React.CSSProperties}
+                >
+                  {/* Tap zone: clicking anywhere except the input or delete btn selects group */}
+                  <button
+                    type="button"
+                    className="group-select-zone"
+                    aria-pressed={gi === activeGroup}
+                    onClick={() => setActiveGroup(gi)}
+                  >
+                    <span
+                      className="group-dot"
+                      style={{ background: GROUP_COLORS[gi % GROUP_COLORS.length] }}
+                    />
+                  </button>
+                  <input
+                    className="group-name-input"
+                    type="text"
                     value={name}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateGroupName(gi, e.target.value)}
+                    aria-label={`Group ${gi + 1} name`}
+                    onChange={(e) => updateGroupName(gi, e.target.value)}
+                    onClick={() => setActiveGroup(gi)}
                   />
                   <span className="group-count">{groups[gi]?.pageIndices.length ?? 0}</span>
                   {groupNames.length > 2 && (
@@ -128,7 +147,7 @@ export default function SplitDialog({ pages, open, onClose, onSplit }: SplitDial
                       renderIcon={TrashCan}
                       iconDescription="Remove group"
                       hasIconOnly
-                      onClick={() => removeGroup(gi)}
+                      onClick={(e: React.MouseEvent) => { e.stopPropagation(); removeGroup(gi); }}
                     />
                   )}
                 </div>
@@ -149,7 +168,7 @@ export default function SplitDialog({ pages, open, onClose, onSplit }: SplitDial
                   key={page.id}
                   className="page-cell"
                   type="button"
-                  onClick={() => cyclePageGroup(pi)}
+                  onClick={() => assignPageToActiveGroup(pi)}
                   aria-label={`Page ${pi + 1}, Group ${groupNames[pageAssignments[pi]]}`}
                 >
                   <img
@@ -171,7 +190,7 @@ export default function SplitDialog({ pages, open, onClose, onSplit }: SplitDial
 
         <footer className="split-footer">
           <Button kind="ghost" size="sm" onClick={onClose}>Cancel</Button>
-          <Button kind="primary" size="sm" disabled={!canSplit} onClick={handleSplit}>Split</Button>
+          <Button kind="primary" size="sm" disabled={!canSplit} onClick={handleSplit} renderIcon={SplitScreen}>Split</Button>
         </footer>
       </div>
     </div>

@@ -23,7 +23,7 @@ export default function ScannerPage() {
   const [previewUrl, setPreviewUrl] = useState('');
   const [cropMode, setCropMode] = useState(false);
   const [draftCrop, setDraftCrop] = useState<QuadCrop | null>(null);
-  const [rawImageUrl, setRawImageUrl] = useState('');
+  const [cropBaseUrl, setCropBaseUrl] = useState('');
   const [previewScale, setPreviewScale] = useState(1.0);
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   const [transition, setTransition] = useState<'none' | 'slide-left' | 'slide-right'>('none');
@@ -77,16 +77,20 @@ export default function ScannerPage() {
     return () => { cancelled = true; };
   }, [currentImage, currentFilter, currentRotation, currentCrop, currentStraighten, setProcessing]);
 
-  // Keep raw object URL for crop editor
+  // Generate crop-base image (filter + rotation + straighten, but NO crop)
+  // so CropEditor shows the image with all current effects applied
   useEffect(() => {
-    if (currentImage) {
-      const url = URL.createObjectURL(currentImage);
-      setRawImageUrl(url);
-      return () => URL.revokeObjectURL(url);
-    } else {
-      setRawImageUrl('');
+    if (!currentImage) {
+      setCropBaseUrl('');
+      return;
     }
-  }, [currentImage]);
+    let cancelled = false;
+    processPage(currentImage, currentFilter, currentRotation, null, currentStraighten)
+      .then((result) => {
+        if (!cancelled) setCropBaseUrl(result.dataUrl);
+      });
+    return () => { cancelled = true; };
+  }, [currentImage, currentFilter, currentRotation, currentStraighten]);
 
   useEffect(() => {
     setDraftCrop(currentCrop);
@@ -449,10 +453,10 @@ export default function ScannerPage() {
               </div>
             )}
 
-            {cropMode && rawImageUrl && (
+            {cropMode && cropBaseUrl && (
               <div className="crop-overlay">
                 <CropEditor
-                  imageUrl={rawImageUrl}
+                  imageUrl={cropBaseUrl}
                   initialCrop={draftCrop}
                   onChange={(crop: QuadCrop) => setDraftCrop(crop)}
                   onConfirm={handleCropConfirm}
