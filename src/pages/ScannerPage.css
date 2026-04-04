@@ -181,7 +181,8 @@
 .preview-actions .cds--btn {
   width: 100%;
   min-width: 0;
-  min-height: 44px;
+  height: var(--sf-scanner-action-button-height, 48px);
+  min-height: var(--sf-scanner-action-button-height, 48px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -198,7 +199,8 @@
 .gallery-actions .cds--btn {
   width: 100%;
   min-width: 0;
-  min-height: 44px;
+  height: var(--sf-scanner-action-button-height, 48px);
+  min-height: var(--sf-scanner-action-button-height, 48px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
