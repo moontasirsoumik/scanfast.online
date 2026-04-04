@@ -41,6 +41,7 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
   const quadRef = useRef<QuadCrop>(initialCrop ? { ...initialCrop, tl: { ...initialCrop.tl }, tr: { ...initialCrop.tr }, br: { ...initialCrop.br }, bl: { ...initialCrop.bl } } : { ...DEFAULT_QUAD });
   const dragRef = useRef<{ corner: CornerKey; } | null>(null);
   const pinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
+  const loupeLockedRef = useRef(false);
 
   useEffect(() => {
     if (initialCrop) {
@@ -193,6 +194,7 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
     dragRef.current = { corner };
     (e.target as Element)?.setPointerCapture?.(e.pointerId);
     e.preventDefault();
+    loupeLockedRef.current = false;
     setLoupeVisible(true);
     updateLoupe(px, py);
   };
@@ -204,99 +206,81 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
     const container = containerRef.current;
     if (!loupeCanvas || !srcImg || !container) return;
 
-    const LOUPE_SIZE = 110;
+    const LOUPE_CSS = 60;   // must match CSS width/height
     const ZOOM = 2.5;
-    const OFFSET = 70;
-    loupeCanvas.width = LOUPE_SIZE;
-    loupeCanvas.height = LOUPE_SIZE;
+    const OFFSET = 58;
+    const DPR = Math.min(window.devicePixelRatio ?? 1, 3);
 
+    // Hi-DPI canvas — crisp on retina
+    loupeCanvas.width = LOUPE_CSS * DPR;
+    loupeCanvas.height = LOUPE_CSS * DPR;
     const ctx = loupeCanvas.getContext('2d');
     if (!ctx) return;
+    ctx.scale(DPR, DPR);
 
-    const cw = container.clientWidth;
-    const ch = container.clientHeight;
+    // Lock position on first call per drag — stays fixed for entire gesture
+    if (!loupeLockedRef.current) {
+      loupeLockedRef.current = true;
+      const cw = container.clientWidth;
+      const ch = container.clientHeight;
 
-    // Position loupe near the point but never below it.
-    // Priority: above-right, above-left, left, right (never below).
-    let lx = px + OFFSET;
-    let ly = py - OFFSET - LOUPE_SIZE / 2;
+      // Priority: above-right → above-left → side. Never below the touch point.
+      let lx = px + OFFSET;
+      let ly = py - OFFSET - LOUPE_CSS / 2;
 
-    // If goes off right edge, try left side
-    if (lx + LOUPE_SIZE > cw - 8) lx = px - OFFSET - LOUPE_SIZE;
-    // If goes off left edge, clamp
-    if (lx < 8) lx = 8;
-    // If goes above top edge, place beside (same height) but never below
-    if (ly < 8) ly = 8;
-    // Never place loupe below the point — ensure loupe bottom is above point
-    if (ly + LOUPE_SIZE > py - 20) {
-      ly = Math.max(8, py - OFFSET - LOUPE_SIZE);
-      // If still impossible (point near top), place to the side at same level
-      if (ly + LOUPE_SIZE > py - 10) {
-        ly = Math.max(8, Math.min(py - LOUPE_SIZE / 2, ch - LOUPE_SIZE - 8));
-        // Push horizontally away
-        if (px < cw / 2) {
-          lx = Math.min(px + OFFSET, cw - LOUPE_SIZE - 8);
-        } else {
-          lx = Math.max(px - OFFSET - LOUPE_SIZE, 8);
+      if (lx + LOUPE_CSS > cw - 8) lx = px - OFFSET - LOUPE_CSS;
+      if (lx < 8) lx = 8;
+      if (ly < 8) ly = 8;
+      if (ly + LOUPE_CSS > py - 20) {
+        ly = Math.max(8, py - OFFSET - LOUPE_CSS);
+        if (ly + LOUPE_CSS > py - 10) {
+          ly = Math.max(8, Math.min(py - LOUPE_CSS / 2, ch - LOUPE_CSS - 8));
+          lx = px < cw / 2
+            ? Math.min(px + OFFSET, cw - LOUPE_CSS - 8)
+            : Math.max(px - OFFSET - LOUPE_CSS, 8);
         }
       }
+
+      setLoupeStyle({ left: `${lx}px`, top: `${ly}px` });
     }
 
-    setLoupeStyle({ left: `${lx}px`, top: `${ly}px` });
-
-    // Map pointer coords to source image coords
+    // Map pointer → source image coords
     const ir = imgRectRef.current;
     const srcX = ((px - ir.x) / ir.w) * srcImg.naturalWidth;
     const srcY = ((py - ir.y) / ir.h) * srcImg.naturalHeight;
+    const regionW = (LOUPE_CSS / ZOOM) * (srcImg.naturalWidth / ir.w);
+    const regionH = (LOUPE_CSS / ZOOM) * (srcImg.naturalHeight / ir.h);
 
-    // Source region size in image pixels
-    const regionW = (LOUPE_SIZE / ZOOM) * (srcImg.naturalWidth / ir.w);
-    const regionH = (LOUPE_SIZE / ZOOM) * (srcImg.naturalHeight / ir.h);
-
-    // Clip circle
+    // Circular clip — fill dark bg first so edge-of-image regions stay clean
     ctx.save();
     ctx.beginPath();
-    ctx.arc(LOUPE_SIZE / 2, LOUPE_SIZE / 2, LOUPE_SIZE / 2, 0, Math.PI * 2);
+    ctx.arc(LOUPE_CSS / 2, LOUPE_CSS / 2, LOUPE_CSS / 2, 0, Math.PI * 2);
     ctx.clip();
-
-    // Draw magnified region
-    ctx.drawImage(
-      srcImg,
-      srcX - regionW / 2,
-      srcY - regionH / 2,
-      regionW,
-      regionH,
-      0, 0,
-      LOUPE_SIZE,
-      LOUPE_SIZE
-    );
+    ctx.fillStyle = '#0d0d0d';
+    ctx.fill();
+    ctx.drawImage(srcImg, srcX - regionW / 2, srcY - regionH / 2, regionW, regionH, 0, 0, LOUPE_CSS, LOUPE_CSS);
     ctx.restore();
 
-    // Crosshair — dual color for visibility on any background
-    const center = LOUPE_SIZE / 2;
-    // Dark shadow
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+    // Clean + crosshair — medium arms, no center dot
+    const c = LOUPE_CSS / 2;
+    const ARM = 12;
+    const crossPaths: [number, number, number, number][] = [
+      [c - ARM, c, c + ARM, c],
+      [c, c - ARM, c, c + ARM],
+    ];
+    ctx.lineCap = 'round';
+    // Dark shadow pass
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
     ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(center - 10, center);
-    ctx.lineTo(center + 10, center);
-    ctx.moveTo(center, center - 10);
-    ctx.lineTo(center, center + 10);
-    ctx.stroke();
-    // White foreground
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    for (const [x1, y1, x2, y2] of crossPaths) {
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    }
+    // White foreground pass
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
     ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(center - 10, center);
-    ctx.lineTo(center + 10, center);
-    ctx.moveTo(center, center - 10);
-    ctx.lineTo(center, center + 10);
-    ctx.stroke();
-    // Center dot
-    ctx.beginPath();
-    ctx.arc(center, center, 2, 0, Math.PI * 2);
-    ctx.fillStyle = '#0f62fe';
-    ctx.fill();
+    for (const [x1, y1, x2, y2] of crossPaths) {
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    }
   }, []);
 
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -388,7 +372,7 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
             className="crop-loupe"
             style={loupeStyle}
           >
-            <canvas ref={loupeCanvasRef} width={110} height={110} />
+            <canvas ref={loupeCanvasRef} width={60} height={60} />
           </div>
         )}
       </div>

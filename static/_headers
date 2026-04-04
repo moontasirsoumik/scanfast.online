@@ -1,0 +1,19 @@
+# Cloudflare Pages custom HTTP headers
+
+# Service worker must never be HTTP-cached — browser must always fetch
+# it fresh to detect updates. Without this, phones use the cached SW
+# and never see new deployments until the browser decides to check.
+/service-worker.js
+  Cache-Control: no-store, no-cache, must-revalidate
+
+# HTML — also no-cache so the page shell is always fresh
+/index.html
+  Cache-Control: no-store, no-cache, must-revalidate
+
+# PWA manifest — short cache so icon/name changes propagate
+/manifest.json
+  Cache-Control: public, max-age=3600, must-revalidate
+
+# Static assets have content-hashed filenames (vite), safe to cache long-term
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
