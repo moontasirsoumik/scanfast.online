@@ -66,23 +66,51 @@ export default function AboutPage() {
 
           <section className="how-section">
             <h2>How it Works</h2>
+            <h3 className="how-subheading">Scanner</h3>
             <ol className="how-list">
               <li>
                 <div>
                   <strong>Scan or Import</strong>
-                  <span>Use your camera to scan documents, or import images and PDFs from your device.</span>
+                  <span>Use your camera to capture documents, or import existing images and PDFs from your device.</span>
                 </div>
               </li>
               <li>
                 <div>
-                  <strong>Edit &amp; Enhance</strong>
-                  <span>Crop, rotate, apply filters, and rearrange pages. All processing happens instantly in your browser.</span>
+                  <strong>Crop &amp; Enhance</strong>
+                  <span>Adjust the crop quad, straighten, rotate, and apply filters like grayscale or high-contrast. All processing is instant, in-browser.</span>
                 </div>
               </li>
               <li>
                 <div>
-                  <strong>Export</strong>
-                  <span>Download as PDF or images. Share directly from your device. No account needed.</span>
+                  <strong>Export or Send to PDF Tools</strong>
+                  <span>Download as a PDF or individual images, share directly from your device, or open pages in PDF Tools for further editing.</span>
+                </div>
+              </li>
+            </ol>
+            <h3 className="how-subheading">PDF Tools</h3>
+            <ol className="how-list">
+              <li>
+                <div>
+                  <strong>Load PDFs or Images</strong>
+                  <span>Drag and drop, tap to browse, or receive pages from the Scanner. Multiple files can be merged in one session.</span>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <strong>Organise Pages</strong>
+                  <span>Drag to reorder, rotate, duplicate, delete, or insert blank pages. Select multiple pages to act on a range at once.</span>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <strong>Split or Compress</strong>
+                  <span>Split pages into named groups and download each as a separate PDF. Compress image-heavy pages by reducing JPEG quality to shrink file size.</span>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <strong>Export or Share</strong>
+                  <span>Save as a single PDF, export pages as individual JPGs, print, or open your device's share sheet to send the file anywhere.</span>
                 </div>
               </li>
             </ol>

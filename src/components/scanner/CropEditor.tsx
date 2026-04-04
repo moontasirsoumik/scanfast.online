@@ -34,13 +34,11 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
   const sourceImgRef = useRef<HTMLImageElement | null>(null);
 
   const [imgLoaded, setImgLoaded] = useState(false);
-  const [scale, setScale] = useState(1.0);
   const [loupeVisible, setLoupeVisible] = useState(false);
   const [loupeStyle, setLoupeStyle] = useState<React.CSSProperties>({});
   const imgRectRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
   const quadRef = useRef<QuadCrop>(initialCrop ? { ...initialCrop, tl: { ...initialCrop.tl }, tr: { ...initialCrop.tr }, br: { ...initialCrop.br }, bl: { ...initialCrop.bl } } : { ...DEFAULT_QUAD });
   const dragRef = useRef<{ corner: CornerKey; } | null>(null);
-  const pinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
   const loupeLockedRef = useRef(false);
 
   useEffect(() => {
@@ -308,33 +306,6 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
     setLoupeVisible(false);
   };
 
-  // Pinch-to-zoom handlers
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      pinchRef.current = { startDist: Math.hypot(dx, dy), startScale: scale };
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 2 && pinchRef.current) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const d = Math.hypot(dx, dy);
-      const newScale = clamp(pinchRef.current.startScale * (d / pinchRef.current.startDist), 0.5, 3.0);
-      setScale(newScale);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    pinchRef.current = null;
-  };
-
-  const resetScale = useCallback(() => {
-    setScale(1.0);
-  }, []);
-
   const handleImgLoad = () => {
     setImgLoaded(true);
     updateImgRect();
@@ -345,10 +316,6 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
       <div
         className="canvas-container"
         ref={containerRef}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
       >
         <img
           src={imageUrl}
@@ -356,7 +323,7 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
           className="crop-image"
           ref={imgRef}
           onLoad={handleImgLoad}
-          style={{ transform: `translate(-50%, -50%) scale(${scale})` }}
+          style={{ transform: 'translate(-50%, -50%)' }}
         />
         <canvas
           ref={canvasRef}
@@ -378,8 +345,8 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
       </div>
 
       <div className="crop-actions">
-        <Button kind="secondary" size="sm" onClick={() => { resetScale(); onCancel(); }}>Cancel</Button>
-        <Button kind="primary" size="sm" onClick={() => { resetScale(); onConfirm(); }}>Confirm</Button>
+        <Button kind="secondary" size="sm" onClick={onCancel}>Cancel</Button>
+        <Button kind="primary" size="sm" onClick={onConfirm}>Confirm</Button>
       </div>
     </div>
   );
