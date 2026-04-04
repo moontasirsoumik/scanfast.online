@@ -13,6 +13,16 @@
   padding: 0 1rem;
 }
 
+@media (min-width: 672px) {
+  .manipulator-page {
+    max-width: 960px;
+  }
+
+  .manipulator-layout {
+    max-width: 960px;
+  }
+}
+
 .manipulator-top {
   flex-shrink: 0;
 }

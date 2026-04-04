@@ -5,7 +5,7 @@
 }
 
 .about-page .page-header {
-  padding: 32px 0 24px;
+  padding: 24px 0 20px;
   animation: sf-fade-in 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
 }
 
@@ -40,7 +40,7 @@
   background: var(--cds-border-subtle-01, #262626);
   border-radius: var(--sf-radius-md);
   overflow: hidden;
-  margin-bottom: 48px;
+  margin-bottom: 36px;
   animation: sf-fade-in 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 100ms both;
 }
 
@@ -48,7 +48,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 24px;
+  padding: 20px;
   background: var(--cds-layer-01, #0d0d0d);
 }
 
@@ -85,11 +85,11 @@
 }
 
 .tech-section {
-  margin-bottom: 48px;
+  margin-bottom: 36px;
 }
 
 .how-section {
-  margin-bottom: 48px;
+  margin-bottom: 36px;
   animation: sf-fade-in 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 200ms both;
 }
 
@@ -114,15 +114,15 @@
   counter-reset: howstep;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .how-list li {
   counter-increment: howstep;
   display: flex;
   align-items: flex-start;
-  gap: 16px;
-  padding: 20px;
+  gap: 14px;
+  padding: 16px;
   background: var(--cds-layer-01, #0d0d0d);
   border: 1px solid var(--cds-border-subtle-01, #262626);
   border-radius: var(--sf-radius-md, 12px);
@@ -131,8 +131,8 @@
 .how-list li::before {
   content: counter(howstep);
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   margin-top: 0;
   align-self: center;
   border-radius: 50%;
@@ -142,7 +142,7 @@
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
 }
 
 .how-list li strong {
@@ -159,7 +159,7 @@
 }
 
 .shortcuts-section {
-  margin-bottom: 48px;
+  margin-bottom: 36px;
 }
 
 .shortcuts-grid {
@@ -226,7 +226,7 @@
 }
 
 .limits-section {
-  margin-bottom: 48px;
+  margin-bottom: 36px;
 }
 
 .limits-section ul {

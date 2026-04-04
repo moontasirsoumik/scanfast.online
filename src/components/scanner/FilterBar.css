@@ -11,6 +11,12 @@
   scrollbar-width: none;
 }
 
+@media (min-width: 672px) {
+  .filter-bar {
+    justify-content: center;
+  }
+}
+
 .filter-bar::-webkit-scrollbar {
   display: none;
 }

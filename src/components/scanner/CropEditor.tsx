@@ -323,7 +323,6 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
           className="crop-image"
           ref={imgRef}
           onLoad={handleImgLoad}
-          style={{ transform: 'translate(-50%, -50%)' }}
         />
         <canvas
           ref={canvasRef}
