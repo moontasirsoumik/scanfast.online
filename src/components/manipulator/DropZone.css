@@ -3,7 +3,7 @@
   background: var(--cds-layer-01, #0d0d0d);
   border: 2px dashed var(--cds-border-subtle-02, #393939);
   border-radius: var(--sf-radius-md, 12px);
-  min-height: 200px;
+  min-height: 160px;
   display: flex;
   align-items: center;
   justify-content: center;

@@ -767,7 +767,7 @@ export default function ManipulatorPage() {
           {
             id: 'share-pdf',
             label: 'Share',
-            description: 'Use your device share menu if available.',
+            description: 'Open your device share sheet to send the PDF.',
             onSelect: handleShare,
           },
         ]}

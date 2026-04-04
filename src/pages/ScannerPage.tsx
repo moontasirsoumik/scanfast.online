@@ -313,6 +313,48 @@ export default function ScannerPage() {
     }
   }, [setProcessing]);
 
+  const handleShare = useCallback(async () => {
+    const state = useScannerStore.getState();
+    if (state.pages.length === 0) return;
+    setProcessing(true);
+    try {
+      const { PDFDocument } = await import('pdf-lib');
+      const pdfDoc = await PDFDocument.create();
+
+      for (const page of state.pages) {
+        const resp = await fetch(page.processedDataUrl);
+        const blob = await resp.blob();
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        let image;
+        if (page.processedDataUrl.startsWith('data:image/png')) {
+          image = await pdfDoc.embedPng(bytes);
+        } else {
+          image = await pdfDoc.embedJpg(bytes);
+        }
+        const pdfPage = pdfDoc.addPage([image.width, image.height]);
+        pdfPage.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
+      }
+
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      const file = new File([blob], 'scanfast-scan.pdf', { type: 'application/pdf' });
+      const shareData = { files: [file], title: 'ScanFast Scan' };
+
+      if (typeof navigator.canShare === 'function' && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+        addToast({ kind: 'success', title: 'Shared', subtitle: 'PDF shared successfully.' });
+      } else {
+        downloadBlob(blob, 'scanfast-scan.pdf');
+        addToast({ kind: 'info', title: 'Sharing not supported', subtitle: 'PDF downloaded instead.' });
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      addToast({ kind: 'error', title: 'Share failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setProcessing(false);
+    }
+  }, [setProcessing]);
+
   const handleOpenManipulator = useCallback(async () => {
     const state = useScannerStore.getState();
     if (state.pages.length === 0) return;
@@ -342,6 +384,7 @@ export default function ScannerPage() {
 
   // --- Preview pinch-to-zoom handlers ---
   const handlePreviewTouchStart = useCallback((e: React.TouchEvent) => {
+    if (cropMode) return;
     if (e.touches.length === 2) {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -364,6 +407,7 @@ export default function ScannerPage() {
   }, [previewScale, cropMode]);
 
   const handlePreviewTouchMove = useCallback((e: React.TouchEvent) => {
+    if (cropMode) return;
     if (e.touches.length === 2 && pinchRef.current) {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -371,7 +415,7 @@ export default function ScannerPage() {
       const newScale = Math.min(5.0, Math.max(0.5, pinchRef.current.startScale * (dist / pinchRef.current.startDist)));
       setPreviewScale(newScale);
     }
-  }, []);
+  }, [cropMode]);
 
   const handlePreviewTouchEnd = useCallback((e: React.TouchEvent) => {
     // Swipe detection for gallery navigation — skip in crop mode or after pinch
@@ -637,6 +681,12 @@ export default function ScannerPage() {
             label: 'Export as JPG files',
             description: 'Download each page as its own image.',
             onSelect: handleExportImages,
+          },
+          {
+            id: 'share-pdf',
+            label: 'Share',
+            description: 'Open your device share sheet to send the PDF.',
+            onSelect: handleShare,
           },
         ]}
       />
