@@ -14,3 +14,25 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </React.StrictMode>
 );
+
+// Register service worker with auto-update on new deployments
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js').then((reg) => {
+      // Check for updates periodically (every 60s)
+      setInterval(() => reg.update(), 60_000);
+
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'activated') {
+            // New version active — reload to get fresh assets
+            window.location.reload();
+          }
+        });
+      });
+    });
+  });
+}

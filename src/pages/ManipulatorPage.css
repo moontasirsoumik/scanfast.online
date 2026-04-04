@@ -60,3 +60,25 @@
     font-size: 1.25rem;
   }
 }
+
+.add-more-row {
+  display: flex;
+  padding: 12px 0 4px;
+}
+
+.export-row {
+  display: flex;
+  padding: 16px 0 8px;
+}
+
+.export-standalone-btn {
+  width: 100%;
+  max-width: 320px;
+  justify-content: center;
+}
+
+@media (max-width: 671px) {
+  .export-standalone-btn {
+    max-width: 100%;
+  }
+}

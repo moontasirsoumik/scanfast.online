@@ -12,6 +12,7 @@ interface FilterBarProps {
 const FILTERS: { type: FilterType; label: string }[] = [
   { type: 'original', label: 'Original' },
   { type: 'enhance', label: 'Enhance' },
+  { type: 'document', label: 'Document' },
   { type: 'bw', label: 'B&W' },
   { type: 'grayscale', label: 'Gray' },
   { type: 'sharpen', label: 'Sharpen' },

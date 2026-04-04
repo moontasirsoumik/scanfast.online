@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" fill="none">
+  <!-- White background -->
+  <rect width="800" height="800" fill="#ffffff"/>
+  
+  <!-- Logo icon (140×140, centered) -->
+  <g transform="translate(330, 220)">
+    <rect width="140" height="140" rx="24" fill="#0f62fe"/>
+    <path d="M35 26h70v9H35zM26 44h88v9H26zM35 62h70v9H35zM44 80h52v9H44zM53 98h34v9H53z" fill="#ffffff"/>
+  </g>
+  
+  <!-- Brand name (72px) -->
+  <text x="400" y="435" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="72" font-weight="700" fill="#161616" text-anchor="middle" letter-spacing="-1.5">
+    ScanFast<tspan fill="#0f62fe">.Online</tspan>
+  </text>
+  
+  <!-- Tagline (30px) -->
+  <text x="400" y="477" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="30" fill="#6f6f6f" text-anchor="middle">
+    Free Document Scanner &amp; PDF Tools
+  </text>
+  
+  <!-- Pills row (centered) -->
+  <g transform="translate(110, 517)">
+    <!-- Offline-capable (purple) -->
+    <rect x="0" y="0" width="180" height="40" rx="20" fill="#e8daff"/>
+    <text x="90" y="26" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="17" fill="#6929c4" text-anchor="middle">Offline-capable</text>
+    
+    <!-- No tracking (blue) -->
+    <rect x="196" y="0" width="160" height="40" rx="20" fill="#d0e2ff"/>
+    <text x="276" y="26" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="17" fill="#0043ce" text-anchor="middle">No tracking</text>
+    
+    <!-- Open source (green) -->
+    <rect x="372" y="0" width="168" height="40" rx="20" fill="#a7f0ba"/>
+    <text x="456" y="26" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="17" fill="#0e6027" text-anchor="middle">Open source</text>
+  </g>
+</svg>

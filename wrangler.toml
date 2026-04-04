@@ -1,0 +1,10 @@
+name = "scanfast-online"
+type = "javascript"
+account_id = ""
+workers_dev = true
+main = ""
+build = { command = "npm run build", cwd = "./", watch_paths = ["src/**/*.{js,ts,tsx,jsx,svelte,css}"], upload = { format = "modules" } }
+env = { production = { name = "scanfast-production", routes = [{ pattern = "scanfast.online/*", zone_name = "scanfast.online" }] } }
+
+[docs]
+theme = "material"

@@ -42,6 +42,12 @@
   flex-wrap: wrap;
 }
 
+@media (max-width: 671px) {
+  .scanner-page .page-header h1 {
+    font-size: 1.25rem;
+  }
+}
+
 .scanner-page .page-header p {
   font-size: 0.875rem;
   color: var(--cds-text-secondary, #c6c6c6);

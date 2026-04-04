@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Grid, Column, Tag } from '@carbon/react';
+import { Grid, Column, Tag, Button } from '@carbon/react';
+import { DocumentAdd, Download } from '@carbon/icons-react';
 import { useManipulatorStore, MAX_PAGES } from '@/stores/manipulator';
 import { useHistoryStore } from '@/stores/history';
 import { addToast } from '@/stores/toast';
 import {
   loadFiles,
   exportAsPdf,
+  exportPageAsImage,
   splitPdf,
   compressPages,
   renderRotatedThumbnail,
@@ -275,6 +277,26 @@ export default function ManipulatorPage() {
     }
   }, [setLoading]);
 
+  // --- Export as JPG ---
+  const handleExportImages = useCallback(async () => {
+    const state = useManipulatorStore.getState();
+    if (state.pages.length === 0) return;
+    setLoading(true);
+    try {
+      for (let i = 0; i < state.pages.length; i++) {
+        const blob = await exportPageAsImage(state.pages[i], 'jpeg', 0.92);
+        downloadBlob(blob, `scanfast-page-${i + 1}.jpg`);
+      }
+      if (state.pages.length >= 3) {
+        addToast({ kind: 'success', title: 'Images exported', subtitle: `${state.pages.length} images downloaded.` });
+      }
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
   // --- Selection ---
   const handleSelect = useCallback((id: string, e: React.MouseEvent) => {
     if (e.shiftKey) {
@@ -502,7 +524,6 @@ export default function ManipulatorPage() {
               canRedo={canRedo}
               isLoading={isLoading}
               maxPages={MAX_PAGES}
-              onAdd={openFilePicker}
               onRotate={handleRotate}
               onDuplicate={handleDuplicate}
               onInsertBlank={handleInsertBlank}
@@ -511,7 +532,6 @@ export default function ManipulatorPage() {
               onCompress={handleCompress}
               onUndo={undo}
               onRedo={redo}
-              onOpenExportMenu={() => setExportSheetOpen(true)}
               onSelectAll={selectAll}
             />
           </Column>
@@ -534,6 +554,11 @@ export default function ManipulatorPage() {
 
             {hasPages && (
               <>
+                <div className="add-more-row">
+                  <Button kind="tertiary" size="sm" renderIcon={DocumentAdd} onClick={openFilePicker} disabled={isLoading || pageCount >= MAX_PAGES}>
+                    Add Another PDF
+                  </Button>
+                </div>
                 <PageGrid
                   pages={pages}
                   selectedIds={selectedIds}
@@ -542,10 +567,26 @@ export default function ManipulatorPage() {
                   onLongPress={(id: string) => toggleSelect(id, true)}
                   onContextMenu={handleContextMenu}
                 />
-                <DropZone maxPages={MAX_PAGES} onFiles={handleFiles} />
               </>
             )}
           </Column>
+
+          {hasPages && (
+            <Column sm={4} md={8} lg={16}>
+              <div className="export-row">
+                <Button
+                  kind="primary"
+                  size="lg"
+                  renderIcon={Download}
+                  disabled={!hasPages || isLoading}
+                  onClick={() => setExportSheetOpen(true)}
+                  className="export-standalone-btn"
+                >
+                  Export
+                </Button>
+              </div>
+            </Column>
+          )}
         </Grid>
       </div>
 
@@ -585,6 +626,12 @@ export default function ManipulatorPage() {
             label: 'Save as PDF',
             description: 'Download one PDF file with all pages.',
             onSelect: handleExport,
+          },
+          {
+            id: 'export-jpg',
+            label: 'Export as JPG files',
+            description: 'Download each page as its own image.',
+            onSelect: handleExportImages,
           },
           {
             id: 'print-pdf',

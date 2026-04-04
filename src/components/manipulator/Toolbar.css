@@ -5,8 +5,15 @@
   padding: 8px 0;
   border-top: 1px solid var(--cds-border-subtle-01, #262626);
   border-bottom: 1px solid var(--cds-border-subtle-01, #262626);
-  flex-wrap: wrap;
   animation: sf-fade-in 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.toolbar-scroll {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
 }
 
 .toolbar-group {
@@ -15,9 +22,9 @@
   gap: 2px;
 }
 
-.toolbar-group--history,
-.toolbar-group--export {
+.toolbar-group--history {
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .toolbar-divider {
@@ -25,23 +32,30 @@
   height: 24px;
   background: var(--cds-border-subtle-01, #262626);
   margin: 0 4px;
-}
-
-.toolbar-spacer {
-  flex: 1;
+  flex-shrink: 0;
 }
 
 @media (max-width: 671px) {
   .toolbar {
+    flex-wrap: nowrap;
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  .toolbar-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     flex-wrap: nowrap;
-    padding: 6px 8px;
     gap: 2px;
   }
-  .toolbar::-webkit-scrollbar { display: none; }
-  .toolbar-divider, .toolbar-spacer { display: none; }
+  .toolbar-scroll::-webkit-scrollbar { display: none; }
+
+  .toolbar-group--history {
+    border-left: 1px solid var(--cds-border-subtle-01, #262626);
+    padding-left: 4px;
+    margin-left: 4px;
+  }
 
   .toolbar .cds--btn {
     flex-shrink: 0;
@@ -51,13 +65,6 @@
     white-space: nowrap;
   }
 
-  /* Primary/secondary buttons with renderIcon need extra end-padding
-     because Carbon absolutely-positions the icon at the right edge. */
-  .toolbar .cds--btn:not(.cds--btn--ghost):not(.cds--btn--icon-only) {
-    padding-inline-end: 2.25rem;
-  }
-
-  /* Force icon + text inline on mobile, don't stack */
   .toolbar .cds--btn svg {
     width: 14px;
     height: 14px;

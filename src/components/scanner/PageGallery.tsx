@@ -110,10 +110,6 @@ export default function PageGallery({ pages, maxPages, onEdit, onDelete, onOpenE
 
   return (
     <div className="page-gallery">
-      <div className="counter">
-        {pages.length} / {maxPages} pages
-      </div>
-
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={pages.map((p) => p.id)} strategy={horizontalListSortingStrategy}>
           <div className="thumbnail-strip" role="list">

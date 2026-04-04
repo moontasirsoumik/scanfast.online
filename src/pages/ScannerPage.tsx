@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Loading, Tag } from '@carbon/react';
-import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, Download, ArrowLeft } from '@carbon/icons-react';
-import { useScannerStore, MAX_PAGES, type QuadCrop, type FilterType } from '@/stores/scanner';
+import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowLeft, ArrowRight } from '@carbon/icons-react';
+import { useScannerStore, MAX_PAGES, type QuadCrop, type FilterType, type ScannedPage } from '@/stores/scanner';
 import { useManipulatorStore } from '@/stores/manipulator';
 import { addToast } from '@/stores/toast';
 import { processPage, readExifOrientation, exifOrientationToDegrees } from '@/services/filters';
@@ -20,7 +20,6 @@ import './ScannerPage.css';
 export default function ScannerPage() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [cameFromCamera, setCameFromCamera] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
   const [cropMode, setCropMode] = useState(false);
   const [draftCrop, setDraftCrop] = useState<QuadCrop | null>(null);
@@ -52,6 +51,7 @@ export default function ScannerPage() {
   const editPage = useScannerStore((s) => s.editPage);
   const removePage = useScannerStore((s) => s.removePage);
   const resetPreview = useScannerStore((s) => s.resetPreview);
+  const addPages = useScannerStore((s) => s.addPages);
 
   useEffect(() => {
     document.title = 'Scanner — ScanFastOnline';
@@ -92,15 +92,35 @@ export default function ScannerPage() {
 
   // --- Handlers ---
   const handleCapture = useCallback(async (blob: Blob) => {
-    setCameFromCamera(true);
-    captureImage(blob);
-    const orientation = await readExifOrientation(blob);
-    const degrees = exifOrientationToDegrees(orientation);
-    if (degrees !== 0) {
-      setRotation(degrees);
-      addToast({ kind: 'info', title: 'Auto-rotated from EXIF', subtitle: `Rotated ${degrees}°` });
+    // Batch mode: save directly with default settings, stay on camera
+    const state = useScannerStore.getState();
+    if (state.pages.length >= MAX_PAGES) {
+      addToast({ kind: 'warning', title: 'Page limit reached', subtitle: 'Maximum 20 pages per session.' });
+      return;
     }
-  }, [captureImage, setRotation]);
+    try {
+      const orientation = await readExifOrientation(blob);
+      const degrees = exifOrientationToDegrees(orientation);
+      const result = await processPage(blob, 'original', degrees, null, 0);
+      const page: ScannedPage = {
+        id: crypto.randomUUID(),
+        originalBlob: blob,
+        processedDataUrl: result.dataUrl,
+        thumbnail: result.thumbnail,
+        filter: 'original',
+        rotation: degrees,
+        straighten: 0,
+        cropRect: null
+      };
+      const added = useScannerStore.getState().addPage(page);
+      if (added) {
+        const count = useScannerStore.getState().pages.length;
+        addToast({ kind: 'info', title: `Page ${count} captured`, subtitle: 'Tap Done when finished.' });
+      }
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Capture failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    }
+  }, []);
 
   const handleCameraClose = useCallback(() => {
     const state = useScannerStore.getState();
@@ -111,21 +131,62 @@ export default function ScannerPage() {
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setCameFromCamera(false);
-      captureImage(file);
-      readExifOrientation(file).then((orientation) => {
-        const degrees = exifOrientationToDegrees(orientation);
-        if (degrees !== 0) {
-          setRotation(degrees);
-          addToast({ kind: 'info', title: 'Auto-rotated from EXIF', subtitle: `Rotated ${degrees}°` });
-        }
-      });
-    }
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     e.target.value = '';
-  }, [captureImage, setRotation]);
+
+    if (files.length === 1) {
+      // Single file → go to preview for editing
+      const file = files[0];
+      captureImage(file);
+      const orientation = await readExifOrientation(file);
+      const degrees = exifOrientationToDegrees(orientation);
+      if (degrees !== 0) {
+        setRotation(degrees);
+      }
+      return;
+    }
+
+    // Multiple files → batch import with default settings, go to gallery
+    setProcessing(true);
+    try {
+      const newPages: ScannedPage[] = [];
+      const state = useScannerStore.getState();
+      const remaining = MAX_PAGES - state.pages.length;
+      const toProcess = Array.from(files).slice(0, remaining);
+
+      for (const file of toProcess) {
+        const orientation = await readExifOrientation(file);
+        const degrees = exifOrientationToDegrees(orientation);
+        const result = await processPage(file, 'original', degrees, null, 0);
+        newPages.push({
+          id: crypto.randomUUID(),
+          originalBlob: file,
+          processedDataUrl: result.dataUrl,
+          thumbnail: result.thumbnail,
+          filter: 'original',
+          rotation: degrees,
+          straighten: 0,
+          cropRect: null
+        });
+      }
+
+      if (newPages.length > 0) {
+        addPages(newPages);
+        addToast({ kind: 'success', title: `${newPages.length} images imported`, subtitle: 'Tap any page to edit.' });
+        setView('gallery');
+      }
+
+      if (files.length > remaining) {
+        addToast({ kind: 'warning', title: 'Page limit reached', subtitle: `Only imported ${remaining} of ${files.length} images.` });
+      }
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Import failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setProcessing(false);
+    }
+  }, [captureImage, setRotation, addPages, setView, setProcessing]);
 
   const handleSavePage = useCallback(async () => {
     const state = useScannerStore.getState();
@@ -157,8 +218,9 @@ export default function ScannerPage() {
     setDraftCrop(null);
     setPreviewScale(1.0);
     resetPreview();
-    setView(cameFromCamera ? 'camera' : 'idle');
-  }, [cameFromCamera, resetPreview, setView]);
+    const state = useScannerStore.getState();
+    setView(state.pages.length > 0 ? 'gallery' : 'idle');
+  }, [resetPreview, setView]);
 
   const handleToggleCrop = useCallback(() => {
     setDraftCrop(currentCrop);
@@ -176,7 +238,6 @@ export default function ScannerPage() {
   }, [currentCrop]);
 
   const handleEditPage = useCallback((id: string) => {
-    setCameFromCamera(false);
     setPreviewScale(1.0);
     editPage(id);
   }, [editPage]);
@@ -333,6 +394,7 @@ export default function ScannerPage() {
         ref={fileInputRef}
         type="file"
         accept="image/*"
+        multiple
         className="hidden-input"
         onChange={handleFileChange}
       />
@@ -393,12 +455,12 @@ export default function ScannerPage() {
                 kind="ghost"
                 size="sm"
                 renderIcon={ArrowLeft}
-                iconDescription={cameFromCamera ? 'Retake' : 'Back'}
-                aria-label={cameFromCamera ? 'Retake' : 'Back'}
+                iconDescription="Back"
+                aria-label="Back"
                 hasIconOnly={isMobile}
                 onClick={handleRetake}
               >
-                {!isMobile ? (cameFromCamera ? 'Retake' : 'Back') : null}
+                {!isMobile ? 'Back' : null}
               </Button>
               <Button
                 kind="ghost"
@@ -414,14 +476,14 @@ export default function ScannerPage() {
               <Button
                 kind="primary"
                 size="sm"
-                renderIcon={Download}
-                iconDescription="Save page"
-                aria-label="Save page"
+                renderIcon={ArrowRight}
+                iconDescription="Next"
+                aria-label="Next"
                 hasIconOnly={isMobile}
                 disabled={isProcessing || !previewUrl}
                 onClick={handleSavePage}
               >
-                {!isMobile ? 'Save Page' : null}
+                {!isMobile ? 'Next' : null}
               </Button>
             </div>
           </div>
@@ -455,7 +517,7 @@ export default function ScannerPage() {
                 <div className="action-icon"><ImageIcon size={24} /></div>
                 <div className="action-text">
                   <strong>Import from Gallery</strong>
-                  <span>Load images and process them as scanned documents</span>
+                  <span>Load one or multiple images from your photo gallery</span>
                 </div>
               </button>
             </div>
@@ -495,7 +557,7 @@ export default function ScannerPage() {
                 Scan Another Page
               </Button>
               <Button kind="ghost" size="sm" renderIcon={Add} onClick={handleImportClick}>
-                Import Image
+                Import Images
               </Button>
             </div>
 
