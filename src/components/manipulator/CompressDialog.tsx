@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@carbon/react';
+import { Minimize } from '@carbon/icons-react';
 import type { PageData } from '@/services/pdf';
 import './CompressDialog.css';
 
@@ -63,6 +64,7 @@ export default function CompressDialog({ pages, selectedIds, open, onClose, onCo
       tabIndex={-1}
       onClick={handleBackdropClick}
       onKeyDown={handleKeydown}
+      onTouchMove={(e) => e.stopPropagation()}
     >
       <div className="compress-modal">
         <header className="compress-header">
@@ -114,7 +116,7 @@ export default function CompressDialog({ pages, selectedIds, open, onClose, onCo
 
         <footer className="compress-footer">
           <Button kind="ghost" size="sm" onClick={onClose}>Cancel</Button>
-          <Button kind="primary" size="sm" disabled={selectedCount === 0} onClick={handleCompress}>Compress</Button>
+          <Button kind="primary" size="sm" disabled={selectedCount === 0} onClick={handleCompress} renderIcon={Minimize}>Compress</Button>
         </footer>
       </div>
     </div>

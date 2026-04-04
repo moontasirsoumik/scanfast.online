@@ -226,6 +226,25 @@ code, pre, .cds--snippet {
 	align-items: center;
 }
 
+/* ── Ghost buttons: give them a visible background + subtle border ── */
+.cds--btn--ghost {
+	background-color: var(--cds-layer-01, #0d0d0d);
+	border: 1px solid var(--cds-border-subtle-01, #262626);
+}
+.cds--btn--ghost:hover {
+	background-color: var(--cds-layer-hover-01, #1a1a1a);
+	border-color: var(--cds-border-subtle-02, #393939);
+}
+.cds--btn--ghost:active {
+	background-color: var(--cds-layer-active-01, #525252);
+}
+.cds--btn--ghost:disabled,
+.cds--btn--ghost[disabled] {
+	background-color: transparent;
+	border-color: var(--cds-border-subtle-01, #262626);
+	opacity: 0.5;
+}
+
 /* ── Border radius: Tags (pill) ── */
 .cds--tag {
 	border-radius: var(--sf-radius-pill);
