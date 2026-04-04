@@ -9,13 +9,13 @@ import {
 } from '@dnd-kit/core';
 import {
   SortableContext,
-  horizontalListSortingStrategy,
+  rectSortingStrategy,
   useSortable,
   arrayMove
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@carbon/react';
-import { Download, ArrowRight, Close } from '@carbon/icons-react';
+import { Close } from '@carbon/icons-react';
 import type { ScannedPage } from '@/stores/scanner';
 import { useScannerStore } from '@/stores/scanner';
 import './PageGallery.css';
@@ -25,8 +25,6 @@ interface PageGalleryProps {
   maxPages: number;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
-  onOpenExport: () => void;
-  onManipulator: () => void;
 }
 
 interface SortableThumbProps {
@@ -77,8 +75,8 @@ function SortableThumb({ page, index, onEdit, onDelete }: SortableThumbProps) {
   );
 }
 
-/** Horizontal scrollable page gallery with DnD reorder, export, and manipulator actions */
-export default function PageGallery({ pages, maxPages, onEdit, onDelete, onOpenExport, onManipulator }: PageGalleryProps) {
+/** Vertical grid page gallery with DnD reorder */
+export default function PageGallery({ pages, maxPages, onEdit, onDelete }: PageGalleryProps) {
   const reorderPages = useScannerStore((s) => s.reorderPages);
 
   const sensors = useSensors(
@@ -108,13 +106,9 @@ export default function PageGallery({ pages, maxPages, onEdit, onDelete, onOpenE
 
   return (
     <div className="page-gallery">
-      <div className="counter">
-        {pages.length} / {maxPages} pages
-      </div>
-
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={pages.map((p) => p.id)} strategy={horizontalListSortingStrategy}>
-          <div className="thumbnail-strip" role="list">
+        <SortableContext items={pages.map((p) => p.id)} strategy={rectSortingStrategy}>
+          <div className="thumbnail-grid" role="list">
             {pages.map((page, i) => (
               <SortableThumb
                 key={page.id}
@@ -127,15 +121,6 @@ export default function PageGallery({ pages, maxPages, onEdit, onDelete, onOpenE
           </div>
         </SortableContext>
       </DndContext>
-
-      <div className="actions">
-        <Button kind="primary" size="sm" renderIcon={Download} onClick={onOpenExport}>
-          Export
-        </Button>
-        <Button kind="secondary" size="sm" renderIcon={ArrowRight} onClick={onManipulator}>
-          Open PDF Tools
-        </Button>
-      </div>
     </div>
   );
 }

@@ -16,7 +16,7 @@ export interface QuadCrop {
 export type CropRect = QuadCrop;
 
 /** Available image filter types */
-export type FilterType = 'original' | 'enhance' | 'bw' | 'grayscale' | 'sharpen' | 'color';
+export type FilterType = 'original' | 'enhance' | 'document' | 'bw' | 'grayscale' | 'sharpen' | 'color';
 
 /** Scanner workflow view states */
 export type ScannerView = 'idle' | 'camera' | 'preview' | 'gallery';
@@ -34,7 +34,7 @@ export interface ScannedPage {
 }
 
 /** Max pages per scanning session */
-export const MAX_PAGES = 20;
+export const MAX_PAGES = 50;
 
 interface ScannerStore {
 	view: ScannerView;
@@ -57,6 +57,7 @@ interface ScannerStore {
 	setProcessing: (value: boolean) => void;
 	setCameraFacing: (facing: 'user' | 'environment') => void;
 	addPage: (page: ScannedPage) => boolean;
+	addPages: (pages: ScannedPage[]) => void;
 	removePage: (id: string) => void;
 	editPage: (id: string) => void;
 	savePage: (processedDataUrl: string, thumbnail: string) => void;
@@ -112,6 +113,13 @@ export const useScannerStore = create<ScannerStore>((set, get) => ({
 		if (pages.length >= MAX_PAGES) return false;
 		set({ pages: [...pages, page] });
 		return true;
+	},
+
+	addPages: (newPages) => {
+		const { pages } = get();
+		const remaining = MAX_PAGES - pages.length;
+		if (remaining <= 0) return;
+		set({ pages: [...pages, ...newPages.slice(0, remaining)] });
 	},
 
 	removePage: (id) =>

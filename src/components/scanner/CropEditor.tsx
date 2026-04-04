@@ -29,9 +29,14 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const loupeCanvasRef = useRef<HTMLCanvasElement>(null);
+  const loupeContainerRef = useRef<HTMLDivElement>(null);
+  const sourceImgRef = useRef<HTMLImageElement | null>(null);
 
   const [imgLoaded, setImgLoaded] = useState(false);
   const [scale, setScale] = useState(1.0);
+  const [loupeVisible, setLoupeVisible] = useState(false);
+  const [loupeStyle, setLoupeStyle] = useState<React.CSSProperties>({});
   const imgRectRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
   const quadRef = useRef<QuadCrop>(initialCrop ? { ...initialCrop, tl: { ...initialCrop.tl }, tr: { ...initialCrop.tr }, br: { ...initialCrop.br }, bl: { ...initialCrop.bl } } : { ...DEFAULT_QUAD });
   const dragRef = useRef<{ corner: CornerKey; } | null>(null);
@@ -43,6 +48,15 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
       drawOverlay();
     }
   }, [initialCrop]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load source image for loupe pixel access
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = imageUrl;
+    img.onload = () => { sourceImgRef.current = img; };
+    return () => { sourceImgRef.current = null; };
+  }, [imageUrl]);
 
   const updateImgRect = useCallback(() => {
     const container = containerRef.current;
@@ -179,7 +193,111 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
     dragRef.current = { corner };
     (e.target as Element)?.setPointerCapture?.(e.pointerId);
     e.preventDefault();
+    setLoupeVisible(true);
+    updateLoupe(px, py);
   };
+
+  /** Draw the magnified area around (px, py) into the loupe canvas */
+  const updateLoupe = useCallback((px: number, py: number) => {
+    const loupeCanvas = loupeCanvasRef.current;
+    const srcImg = sourceImgRef.current;
+    const container = containerRef.current;
+    if (!loupeCanvas || !srcImg || !container) return;
+
+    const LOUPE_SIZE = 110;
+    const ZOOM = 2.5;
+    const OFFSET = 70;
+    loupeCanvas.width = LOUPE_SIZE;
+    loupeCanvas.height = LOUPE_SIZE;
+
+    const ctx = loupeCanvas.getContext('2d');
+    if (!ctx) return;
+
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+
+    // Position loupe near the point but never below it.
+    // Priority: above-right, above-left, left, right (never below).
+    let lx = px + OFFSET;
+    let ly = py - OFFSET - LOUPE_SIZE / 2;
+
+    // If goes off right edge, try left side
+    if (lx + LOUPE_SIZE > cw - 8) lx = px - OFFSET - LOUPE_SIZE;
+    // If goes off left edge, clamp
+    if (lx < 8) lx = 8;
+    // If goes above top edge, place beside (same height) but never below
+    if (ly < 8) ly = 8;
+    // Never place loupe below the point — ensure loupe bottom is above point
+    if (ly + LOUPE_SIZE > py - 20) {
+      ly = Math.max(8, py - OFFSET - LOUPE_SIZE);
+      // If still impossible (point near top), place to the side at same level
+      if (ly + LOUPE_SIZE > py - 10) {
+        ly = Math.max(8, Math.min(py - LOUPE_SIZE / 2, ch - LOUPE_SIZE - 8));
+        // Push horizontally away
+        if (px < cw / 2) {
+          lx = Math.min(px + OFFSET, cw - LOUPE_SIZE - 8);
+        } else {
+          lx = Math.max(px - OFFSET - LOUPE_SIZE, 8);
+        }
+      }
+    }
+
+    setLoupeStyle({ left: `${lx}px`, top: `${ly}px` });
+
+    // Map pointer coords to source image coords
+    const ir = imgRectRef.current;
+    const srcX = ((px - ir.x) / ir.w) * srcImg.naturalWidth;
+    const srcY = ((py - ir.y) / ir.h) * srcImg.naturalHeight;
+
+    // Source region size in image pixels
+    const regionW = (LOUPE_SIZE / ZOOM) * (srcImg.naturalWidth / ir.w);
+    const regionH = (LOUPE_SIZE / ZOOM) * (srcImg.naturalHeight / ir.h);
+
+    // Clip circle
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(LOUPE_SIZE / 2, LOUPE_SIZE / 2, LOUPE_SIZE / 2, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Draw magnified region
+    ctx.drawImage(
+      srcImg,
+      srcX - regionW / 2,
+      srcY - regionH / 2,
+      regionW,
+      regionH,
+      0, 0,
+      LOUPE_SIZE,
+      LOUPE_SIZE
+    );
+    ctx.restore();
+
+    // Crosshair — dual color for visibility on any background
+    const center = LOUPE_SIZE / 2;
+    // Dark shadow
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(center - 10, center);
+    ctx.lineTo(center + 10, center);
+    ctx.moveTo(center, center - 10);
+    ctx.lineTo(center, center + 10);
+    ctx.stroke();
+    // White foreground
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(center - 10, center);
+    ctx.lineTo(center + 10, center);
+    ctx.moveTo(center, center - 10);
+    ctx.lineTo(center, center + 10);
+    ctx.stroke();
+    // Center dot
+    ctx.beginPath();
+    ctx.arc(center, center, 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#0f62fe';
+    ctx.fill();
+  }, []);
 
   const handlePointerMove = (e: React.PointerEvent) => {
     const drag = dragRef.current;
@@ -198,10 +316,12 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
     };
     drawOverlay();
     onChange({ ...quadRef.current });
+    updateLoupe(px, py);
   };
 
   const handlePointerUp = () => {
     dragRef.current = null;
+    setLoupeVisible(false);
   };
 
   // Pinch-to-zoom handlers
@@ -262,6 +382,15 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
         />
+        {loupeVisible && (
+          <div
+            ref={loupeContainerRef}
+            className="crop-loupe"
+            style={loupeStyle}
+          >
+            <canvas ref={loupeCanvasRef} width={110} height={110} />
+          </div>
+        )}
       </div>
 
       <div className="crop-actions">

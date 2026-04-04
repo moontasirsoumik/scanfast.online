@@ -3,22 +3,63 @@
 import type { QuadCrop, Point } from '@/stores/scanner';
 
 /** Available image filter types */
-export type FilterType = 'original' | 'enhance' | 'bw' | 'grayscale' | 'sharpen' | 'color';
+export type FilterType = 'original' | 'enhance' | 'document' | 'bw' | 'grayscale' | 'sharpen' | 'color';
 
-/** Load a Blob into an HTMLImageElement */
+/** Maximum pixel dimension for stored images (preserves small text at ~257 DPI on A4) */
+const MAX_IMAGE_DIMENSION = 3000;
+
+/** Load a Blob into an HTMLImageElement, ignoring EXIF orientation so manual rotation is correct */
 function loadImage(blob: Blob): Promise<HTMLImageElement> {
-	return new Promise((resolve, reject) => {
-		const img = new Image();
-		const url = URL.createObjectURL(blob);
-		img.onload = () => {
-			URL.revokeObjectURL(url);
-			resolve(img);
-		};
-		img.onerror = () => {
-			URL.revokeObjectURL(url);
-			reject(new Error('Failed to load image'));
-		};
-		img.src = url;
+	// Use createImageBitmap with imageOrientation 'none' to get raw pixels
+	// (browsers auto-apply EXIF to <img>, which would cause double-rotation)
+	return createImageBitmap(blob, { imageOrientation: 'none' }).then((bitmap) => {
+		// Downscale if larger than MAX_IMAGE_DIMENSION
+		let w = bitmap.width;
+		let h = bitmap.height;
+		const maxDim = Math.max(w, h);
+		if (maxDim > MAX_IMAGE_DIMENSION) {
+			const scale = MAX_IMAGE_DIMENSION / maxDim;
+			w = Math.round(w * scale);
+			h = Math.round(h * scale);
+		}
+
+		const canvas = document.createElement('canvas');
+		canvas.width = w;
+		canvas.height = h;
+		const ctx = canvas.getContext('2d');
+		if (!ctx) throw new Error('Failed to get canvas 2d context');
+		ctx.drawImage(bitmap, 0, 0, w, h);
+		bitmap.close();
+
+		return new Promise<HTMLImageElement>((resolve, reject) => {
+			const img = new Image();
+			img.onload = () => resolve(img);
+			img.onerror = () => reject(new Error('Failed to load image'));
+			img.src = canvas.toDataURL('image/jpeg', 0.95);
+		});
+	});
+}
+
+/** Downscale a Blob if it exceeds MAX_IMAGE_DIMENSION, returning a smaller JPEG Blob */
+export async function downscaleBlob(blob: Blob): Promise<Blob> {
+	const bitmap = await createImageBitmap(blob, { imageOrientation: 'none' });
+	const maxDim = Math.max(bitmap.width, bitmap.height);
+	if (maxDim <= MAX_IMAGE_DIMENSION) {
+		bitmap.close();
+		return blob;
+	}
+	const scale = MAX_IMAGE_DIMENSION / maxDim;
+	const w = Math.round(bitmap.width * scale);
+	const h = Math.round(bitmap.height * scale);
+	const canvas = document.createElement('canvas');
+	canvas.width = w;
+	canvas.height = h;
+	const ctx = canvas.getContext('2d');
+	if (!ctx) { bitmap.close(); return blob; }
+	ctx.drawImage(bitmap, 0, 0, w, h);
+	bitmap.close();
+	return new Promise<Blob>((resolve) => {
+		canvas.toBlob((b) => resolve(b ?? blob), 'image/jpeg', 0.92);
 	});
 }
 
@@ -79,6 +120,52 @@ function applyBW(data: Uint8ClampedArray): void {
 	for (let i = 0, j = 0; i < data.length; i += 4, j++) {
 		const val = gray[j] > threshold ? 255 : 0;
 		data[i] = data[i + 1] = data[i + 2] = val;
+	}
+}
+
+function applyDocument(data: Uint8ClampedArray): void {
+	// Like B&W (Otsu) but keeps original color for dark pixels
+	const gray = new Uint8Array(data.length / 4);
+	for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+		gray[j] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+	}
+
+	// Otsu's threshold
+	const histogram = new Uint32Array(256);
+	for (let i = 0; i < gray.length; i++) histogram[gray[i]]++;
+
+	const total = gray.length;
+	let sumTotal = 0;
+	for (let i = 0; i < 256; i++) sumTotal += i * histogram[i];
+
+	let sumBg = 0;
+	let weightBg = 0;
+	let maxVariance = 0;
+	let threshold = 128;
+
+	for (let t = 0; t < 256; t++) {
+		weightBg += histogram[t];
+		if (weightBg === 0) continue;
+		const weightFg = total - weightBg;
+		if (weightFg === 0) break;
+
+		sumBg += t * histogram[t];
+		const meanBg = sumBg / weightBg;
+		const meanFg = (sumTotal - sumBg) / weightFg;
+		const variance = weightBg * weightFg * (meanBg - meanFg) * (meanBg - meanFg);
+
+		if (variance > maxVariance) {
+			maxVariance = variance;
+			threshold = t;
+		}
+	}
+
+	// Background → white, foreground → keep color (boosted)
+	for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+		if (gray[j] > threshold) {
+			data[i] = data[i + 1] = data[i + 2] = 255;
+		}
+		// else keep original color
 	}
 }
 
@@ -407,6 +494,7 @@ export async function applyFilter(sourceBlob: Blob, filter: FilterType): Promise
 	} else {
 		if (filter === 'grayscale') applyGrayscale(imageData.data);
 		else if (filter === 'bw') applyBW(imageData.data);
+		else if (filter === 'document') applyDocument(imageData.data);
 		else if (filter === 'enhance') applyEnhance(imageData.data);
 		else if (filter === 'color') applyPhotoColor(imageData.data);
 		ctx.putImageData(imageData, 0, 0);
@@ -513,6 +601,7 @@ export async function processPage(
 		} else {
 			if (filter === 'grayscale') applyGrayscale(imageData.data);
 			else if (filter === 'bw') applyBW(imageData.data);
+			else if (filter === 'document') applyDocument(imageData.data);
 			else if (filter === 'enhance') applyEnhance(imageData.data);
 			else if (filter === 'color') applyPhotoColor(imageData.data);
 			ctx.putImageData(imageData, 0, 0);

@@ -9,7 +9,7 @@
   inset: 0;
   border: 0;
   background: rgba(0, 0, 0, 0.45);
-  animation: sf-fade-in 180ms ease;
+  animation: sf-fade-in 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
 }
 
 .action-sheet {
@@ -23,7 +23,7 @@
   border-bottom: 0;
   border-radius: 1rem 1rem 0 0;
   padding: 0.5rem 0 0.75rem;
-  animation: sf-sheet-up 220ms ease;
+  animation: sf-sheet-up 350ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
 }
 
 .action-sheet-handle {
@@ -68,6 +68,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  justify-content: center;
   gap: 0.15rem;
   min-height: 56px;
   width: 100%;
@@ -88,12 +89,17 @@
   outline: none;
 }
 
+.action-sheet-option,
+.action-sheet-close {
+  transition: background-color 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
 .action-sheet-label {
   font-size: 0.95rem;
 }
 
 .action-sheet-description {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--cds-text-secondary, #c6c6c6);
 }
 

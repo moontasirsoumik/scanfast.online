@@ -6,7 +6,8 @@
 	--sf-font-heading: 'Outfit Variable', 'Outfit', sans-serif;
 	--sf-font-body: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', sans-serif;
 	--sf-font-mono: 'IBM Plex Mono', 'Courier New', monospace;
-	--sf-mobile-nav-height: 5.5rem;
+	--sf-mobile-nav-height: 0px;
+	--sf-scanner-action-button-height: 48px;
 
 	/* ── Border Radius ── */
 	--sf-radius-sm: 8px;
@@ -79,6 +80,20 @@
 	--cds-skeleton-background: #0d0d0d;
 }
 
+/* ── Prevent text selection and context menu across the app ── */
+body {
+	-webkit-user-select: none;
+	user-select: none;
+	-webkit-touch-callout: none;
+	touch-action: pan-x pan-y;
+}
+
+/* Allow selection in actual input fields */
+input, textarea, [contenteditable="true"] {
+	-webkit-user-select: text;
+	user-select: text;
+}
+
 /* ── Global resets ── */
 html,
 body {
@@ -110,49 +125,57 @@ a,
 .context-menu,
 .mobile-tabbar-link {
 	transition:
-		transform 160ms ease,
-		background-color 160ms ease,
-		border-color 160ms ease,
-		color 160ms ease,
-		opacity 160ms ease;
-}
-
-button:hover,
-a:hover,
-.cds--btn:hover,
-.cds--tile--clickable:hover,
-.action-card:hover,
-.thumb-card:hover,
-.filter-card:hover,
-.drop-zone:hover,
-.mobile-tabbar-link:hover {
-	transform: translateY(-1px);
-}
-
-button:active,
-a:active,
-.cds--btn:active,
-.action-card:active,
-.thumb-card:active,
-.filter-card:active,
-.drop-zone:active,
-.mobile-tabbar-link:active {
-	transform: translateY(0);
-	opacity: 0.92;
+		background-color 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+		border-color 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+		color 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+		opacity 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 .cds--content > * {
-	animation: sf-fade-in 220ms ease;
+	animation: sf-fade-in 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
 }
 
 @keyframes sf-fade-in {
 	from {
 		opacity: 0;
-		transform: translateY(8px);
+		transform: translateY(6px);
 	}
 	to {
 		opacity: 1;
 		transform: translateY(0);
+	}
+}
+
+/* ── Logo launch animation ── */
+@keyframes sf-logo-reveal {
+	0% {
+		opacity: 0;
+		letter-spacing: 0.25em;
+		filter: blur(8px);
+	}
+	60% {
+		opacity: 1;
+		letter-spacing: 0.06em;
+		filter: blur(0);
+	}
+	80% {
+		letter-spacing: 0.03em;
+	}
+	100% {
+		opacity: 1;
+		letter-spacing: 0.04em;
+		filter: blur(0);
+	}
+}
+
+@keyframes sf-logo-tld {
+	0% {
+		opacity: 0;
+		transform: translateX(-4px);
+	}
+	100% {
+		opacity: 1;
+		transform: translateX(0);
 	}
 }
 
@@ -198,6 +221,9 @@ code, pre, .cds--snippet {
 /* ── Border radius: Buttons ── */
 .cds--btn {
 	border-radius: var(--sf-radius-sm);
+	/* Force vertical centering of icon + text inside all Carbon buttons */
+	display: inline-flex;
+	align-items: center;
 }
 
 /* ── Border radius: Tags (pill) ── */
@@ -257,7 +283,7 @@ code, pre, .cds--snippet {
 
 /* ── Content area ── */
 .cds--content {
-	background: var(--cds-background);
+	background: var(--cds-background) !important;
 	padding: 0;
 }
 

@@ -6,7 +6,6 @@ import {
   HeaderNavigation,
   HeaderMenuItem,
   HeaderGlobalBar,
-  HeaderGlobalAction,
   Content,
   SkipToContent,
   Theme,
@@ -26,7 +25,6 @@ const AboutPage = lazy(() => import('@/pages/AboutPage'));
 const navItems = [
   { to: '/scanner', label: 'Scanner', icon: Scan },
   { to: '/manipulator', label: 'PDF Tools', icon: DocumentPdf },
-  { to: '/about', label: 'About', icon: Information },
 ];
 
 /** Root application component with desktop header navigation and a compact mobile dock. */
@@ -34,6 +32,11 @@ export default function App() {
   const location = useLocation();
   const [theme, setTheme] = useState<'g100' | 'white'>('g100');
   const [isOnline, setIsOnline] = useState(true);
+  const isWorkPage = location.pathname === '/scanner' || location.pathname === '/manipulator';
+  const showPersistentMobileTabbar = !isWorkPage;
+  const isAboutPage = location.pathname === '/about';
+  const crossNavTo = location.pathname === '/scanner' ? '/manipulator' : '/scanner';
+  const crossNavLabel = location.pathname === '/scanner' ? 'PDF Tools' : 'Scanner';
 
   const manipulatorPages = useManipulatorStore((s) => s.pages);
   const scannerPages = useScannerStore((s) => s.pages);
@@ -79,14 +82,21 @@ export default function App() {
         </HeaderName>
 
         <HeaderNavigation aria-label="Main navigation" className="desktop-nav">
-          <HeaderMenuItem as={Link} to="/scanner">
+          <HeaderMenuItem
+            as={Link}
+            to="/scanner"
+            aria-current={location.pathname === '/scanner' ? 'page' : undefined}
+            className={`desktop-nav-link${location.pathname === '/scanner' ? ' is-active' : ''}`}
+          >
             Scanner
           </HeaderMenuItem>
-          <HeaderMenuItem as={Link} to="/manipulator">
+          <HeaderMenuItem
+            as={Link}
+            to="/manipulator"
+            aria-current={location.pathname === '/manipulator' ? 'page' : undefined}
+            className={`desktop-nav-link${location.pathname === '/manipulator' ? ' is-active' : ''}`}
+          >
             PDF Tools
-          </HeaderMenuItem>
-          <HeaderMenuItem as={Link} to="/about">
-            About
           </HeaderMenuItem>
         </HeaderNavigation>
 
@@ -97,16 +107,30 @@ export default function App() {
               <span>Offline</span>
             </div>
           )}
-          <HeaderGlobalAction
+          {isWorkPage ? (
+            <Link to={crossNavTo} className="header-cross-nav">
+              {crossNavLabel}
+            </Link>
+          ) : null}
+          <Link
+            to="/about"
+            aria-label="About"
+            className={`cds--header__action header-global-link${isAboutPage ? ' is-active' : ''}`}
+          >
+            <Information size={18} />
+          </Link>
+          <button
+            type="button"
             aria-label={theme === 'g100' ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="cds--header__action header-icon-button"
             onClick={toggleTheme}
           >
             {theme === 'g100' ? <Light size={20} /> : <Asleep size={20} />}
-          </HeaderGlobalAction>
+          </button>
         </HeaderGlobalBar>
       </Header>
 
-      <Content id="main-content">
+      <Content id="main-content" className={`app-content${showPersistentMobileTabbar ? ' has-mobile-tabbar' : ''}`}>
         <Suspense fallback={<Loading withOverlay={false} />}>
           <Routes>
             <Route path="/" element={<HomePage />} />
@@ -117,24 +141,26 @@ export default function App() {
         </Suspense>
       </Content>
 
-      <nav className="mobile-tabbar" aria-label="Quick navigation">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = location.pathname === item.to;
+      {showPersistentMobileTabbar ? (
+        <nav className="mobile-tabbar" aria-label="Quick navigation">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = location.pathname === item.to;
 
-          return (
-            <Link
-              key={item.to}
-              to={item.to}
-              className={`mobile-tabbar-link${active ? ' is-active' : ''}`}
-              aria-current={active ? 'page' : undefined}
-            >
-              <Icon size={18} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`mobile-tabbar-link${active ? ' is-active' : ''}`}
+                aria-current={active ? 'page' : undefined}
+              >
+                <Icon size={16} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      ) : null}
 
       <Toast />
     </Theme>

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#000000"/>
+  
+  <!-- Subtle grid pattern -->
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <rect width="40" height="40" fill="none"/>
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#111111" stroke-width="0.5"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  
+  <!-- Blue accent line at top -->
+  <rect y="0" width="1200" height="4" fill="#0f62fe"/>
+  
+  <!-- Logo (document scan icon) -->
+  <g transform="translate(80, 180)">
+    <rect width="96" height="96" rx="16" fill="#0f62fe"/>
+    <path d="M24 18h48v6H24zM18 30h60v6H18zM24 42h48v6H24zM30 54h36v6H30zM36 66h24v6H36z" fill="#ffffff"/>
+  </g>
+  
+  <!-- Title -->
+  <text x="200" y="228" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="56" font-weight="700" fill="#f4f4f4" letter-spacing="-1">
+    ScanFast<tspan fill="#0f62fe">.online</tspan>
+  </text>
+  
+  <!-- Tagline -->
+  <text x="200" y="280" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="26" fill="#a8a8a8" letter-spacing="0">
+    Free Document Scanner &amp; PDF Tools
+  </text>
+  
+  <!-- Feature pills -->
+  <g transform="translate(80, 340)">
+    <!-- Pill 1 -->
+    <rect x="0" y="0" width="180" height="44" rx="22" fill="#1a1a1a" stroke="#333333" stroke-width="1"/>
+    <text x="90" y="28" font-family="system-ui, sans-serif" font-size="16" fill="#c6c6c6" text-anchor="middle">No Ads or Tracking</text>
+    
+    <!-- Pill 2 -->
+    <rect x="196" y="0" width="160" height="44" rx="22" fill="#1a1a1a" stroke="#333333" stroke-width="1"/>
+    <text x="276" y="28" font-family="system-ui, sans-serif" font-size="16" fill="#c6c6c6" text-anchor="middle">Works Offline</text>
+    
+    <!-- Pill 3 -->
+    <rect x="372" y="0" width="180" height="44" rx="22" fill="#1a1a1a" stroke="#333333" stroke-width="1"/>
+    <text x="462" y="28" font-family="system-ui, sans-serif" font-size="16" fill="#c6c6c6" text-anchor="middle">No Login Required</text>
+    
+    <!-- Pill 4 -->
+    <rect x="568" y="0" width="200" height="44" rx="22" fill="#1a1a1a" stroke="#333333" stroke-width="1"/>
+    <text x="668" y="28" font-family="system-ui, sans-serif" font-size="16" fill="#c6c6c6" text-anchor="middle">100% Client-Side</text>
+  </g>
+  
+  <!-- Feature list -->
+  <g transform="translate(80, 420)">
+    <text font-family="system-ui, sans-serif" font-size="18" fill="#6f6f6f">
+      <tspan x="0" dy="0">Scan documents with your camera</tspan>
+      <tspan x="0" dy="32">Merge, split, rotate &amp; reorder PDFs</tspan>
+      <tspan x="0" dy="32">Crop, filter &amp; enhance scanned pages</tspan>
+      <tspan x="0" dy="32">Export as PDF or JPG — everything stays on your device</tspan>
+    </text>
+  </g>
+  
+  <!-- URL at bottom -->
+  <text x="1120" y="590" font-family="system-ui, sans-serif" font-size="20" fill="#525252" text-anchor="end">scanfast.online</text>
+</svg>

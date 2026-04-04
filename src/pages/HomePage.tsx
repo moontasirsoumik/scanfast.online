@@ -83,7 +83,7 @@ export default function HomePage() {
               </div>
               <div className="feature">
                 <strong>Fast and lightweight</strong>
-                <span>Scan up to 20 pages in a single session.</span>
+                <span>Scan up to 50 pages in a single session.</span>
               </div>
             </div>
           </Column>

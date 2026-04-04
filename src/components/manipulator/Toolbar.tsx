@@ -1,6 +1,5 @@
 import { Button } from '@carbon/react';
 import {
-  DocumentAdd,
   CheckboxChecked,
   Rotate,
   Copy,
@@ -10,7 +9,6 @@ import {
   Minimize,
   Undo,
   Redo,
-  Download
 } from '@carbon/icons-react';
 import './Toolbar.css';
 
@@ -21,7 +19,6 @@ interface ToolbarProps {
   canRedo: boolean;
   isLoading: boolean;
   maxPages: number;
-  onAdd: () => void;
   onRotate: () => void;
   onDuplicate: () => void;
   onInsertBlank: () => void;
@@ -30,15 +27,14 @@ interface ToolbarProps {
   onCompress: () => void;
   onUndo: () => void;
   onRedo: () => void;
-  onOpenExportMenu: () => void;
   onSelectAll: () => void;
 }
 
-/** Horizontal toolbar with grouped page operations */
+/** Horizontal toolbar with grouped page operations — tools scroll, undo/redo pinned */
 export default function Toolbar({
   pageCount, selectedCount, canUndo, canRedo, isLoading, maxPages,
-  onAdd, onRotate, onDuplicate, onInsertBlank, onDelete,
-  onSplit, onCompress, onUndo, onRedo, onOpenExportMenu, onSelectAll
+  onRotate, onDuplicate, onInsertBlank, onDelete,
+  onSplit, onCompress, onUndo, onRedo, onSelectAll
 }: ToolbarProps) {
   const atPageLimit = pageCount >= maxPages;
   const noSelection = selectedCount === 0;
@@ -46,47 +42,40 @@ export default function Toolbar({
 
   return (
     <div className="toolbar" role="toolbar" aria-label="Page operations" aria-orientation="horizontal">
-      <div className="toolbar-group">
-        <Button kind="ghost" size="sm" renderIcon={DocumentAdd} iconDescription="Add files" disabled={isLoading} onClick={onAdd}>
-          Add Files
-        </Button>
-        <Button kind="ghost" size="sm" renderIcon={CheckboxChecked} iconDescription="Select all" disabled={noPages} onClick={onSelectAll}>
-          Select All
-        </Button>
+      <div className="toolbar-scroll">
+        <div className="toolbar-group">
+          <Button kind="ghost" size="sm" renderIcon={CheckboxChecked} iconDescription="Select all" disabled={noPages} onClick={onSelectAll}>
+            Select All
+          </Button>
+        </div>
+        <div className="toolbar-divider" />
+        <div className="toolbar-group">
+          <Button kind="ghost" size="sm" renderIcon={Rotate} iconDescription="Rotate" disabled={noSelection} onClick={onRotate}>
+            Rotate
+          </Button>
+          <Button kind="ghost" size="sm" renderIcon={Copy} iconDescription="Copy page" disabled={noSelection} onClick={onDuplicate}>
+            Copy Page
+          </Button>
+          <Button kind="ghost" size="sm" renderIcon={DocumentBlank} iconDescription="Add blank page" disabled={atPageLimit || isLoading} onClick={onInsertBlank}>
+            Add Blank
+          </Button>
+          <Button kind="ghost" size="sm" renderIcon={TrashCan} iconDescription="Delete" disabled={noSelection} onClick={onDelete}>
+            Delete
+          </Button>
+        </div>
+        <div className="toolbar-divider" />
+        <div className="toolbar-group">
+          <Button kind="ghost" size="sm" renderIcon={SplitScreen} iconDescription="Split PDF" disabled={noPages} onClick={onSplit}>
+            Split PDF
+          </Button>
+          <Button kind="ghost" size="sm" renderIcon={Minimize} iconDescription="Compress" disabled={noSelection} onClick={onCompress}>
+            Compress
+          </Button>
+        </div>
       </div>
-      <div className="toolbar-divider" />
-      <div className="toolbar-group">
-        <Button kind="ghost" size="sm" renderIcon={Rotate} iconDescription="Rotate" disabled={noSelection} onClick={onRotate}>
-          Rotate
-        </Button>
-        <Button kind="ghost" size="sm" renderIcon={Copy} iconDescription="Copy page" disabled={noSelection} onClick={onDuplicate}>
-          Copy Page
-        </Button>
-        <Button kind="ghost" size="sm" renderIcon={DocumentBlank} iconDescription="Add blank page" disabled={atPageLimit || isLoading} onClick={onInsertBlank}>
-          Add Blank
-        </Button>
-        <Button kind="ghost" size="sm" renderIcon={TrashCan} iconDescription="Delete" disabled={noSelection} onClick={onDelete}>
-          Delete
-        </Button>
-      </div>
-      <div className="toolbar-divider" />
-      <div className="toolbar-group">
-        <Button kind="ghost" size="sm" renderIcon={SplitScreen} iconDescription="Split PDF" disabled={noPages} onClick={onSplit}>
-          Split PDF
-        </Button>
-        <Button kind="ghost" size="sm" renderIcon={Minimize} iconDescription="Compress" disabled={noSelection} onClick={onCompress}>
-          Compress
-        </Button>
-      </div>
-      <div className="toolbar-spacer" />
       <div className="toolbar-group toolbar-group--history">
         <Button kind="ghost" size="sm" renderIcon={Undo} iconDescription="Undo" disabled={!canUndo} onClick={onUndo} hasIconOnly />
         <Button kind="ghost" size="sm" renderIcon={Redo} iconDescription="Redo" disabled={!canRedo} onClick={onRedo} hasIconOnly />
-      </div>
-      <div className="toolbar-group toolbar-group--export">
-        <Button kind="primary" size="sm" renderIcon={Download} disabled={noPages || isLoading} onClick={onOpenExportMenu}>
-          Export
-        </Button>
       </div>
     </div>
   );
