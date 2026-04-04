@@ -5,17 +5,30 @@ import type { QuadCrop, Point } from '@/stores/scanner';
 /** Available image filter types */
 export type FilterType = 'original' | 'enhance' | 'document' | 'bw' | 'grayscale' | 'sharpen' | 'color';
 
+/** Maximum pixel dimension for stored images (preserves small text at ~257 DPI on A4) */
+const MAX_IMAGE_DIMENSION = 3000;
+
 /** Load a Blob into an HTMLImageElement, ignoring EXIF orientation so manual rotation is correct */
 function loadImage(blob: Blob): Promise<HTMLImageElement> {
 	// Use createImageBitmap with imageOrientation 'none' to get raw pixels
 	// (browsers auto-apply EXIF to <img>, which would cause double-rotation)
 	return createImageBitmap(blob, { imageOrientation: 'none' }).then((bitmap) => {
+		// Downscale if larger than MAX_IMAGE_DIMENSION
+		let w = bitmap.width;
+		let h = bitmap.height;
+		const maxDim = Math.max(w, h);
+		if (maxDim > MAX_IMAGE_DIMENSION) {
+			const scale = MAX_IMAGE_DIMENSION / maxDim;
+			w = Math.round(w * scale);
+			h = Math.round(h * scale);
+		}
+
 		const canvas = document.createElement('canvas');
-		canvas.width = bitmap.width;
-		canvas.height = bitmap.height;
+		canvas.width = w;
+		canvas.height = h;
 		const ctx = canvas.getContext('2d');
 		if (!ctx) throw new Error('Failed to get canvas 2d context');
-		ctx.drawImage(bitmap, 0, 0);
+		ctx.drawImage(bitmap, 0, 0, w, h);
 		bitmap.close();
 
 		return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -24,6 +37,29 @@ function loadImage(blob: Blob): Promise<HTMLImageElement> {
 			img.onerror = () => reject(new Error('Failed to load image'));
 			img.src = canvas.toDataURL('image/jpeg', 0.95);
 		});
+	});
+}
+
+/** Downscale a Blob if it exceeds MAX_IMAGE_DIMENSION, returning a smaller JPEG Blob */
+export async function downscaleBlob(blob: Blob): Promise<Blob> {
+	const bitmap = await createImageBitmap(blob, { imageOrientation: 'none' });
+	const maxDim = Math.max(bitmap.width, bitmap.height);
+	if (maxDim <= MAX_IMAGE_DIMENSION) {
+		bitmap.close();
+		return blob;
+	}
+	const scale = MAX_IMAGE_DIMENSION / maxDim;
+	const w = Math.round(bitmap.width * scale);
+	const h = Math.round(bitmap.height * scale);
+	const canvas = document.createElement('canvas');
+	canvas.width = w;
+	canvas.height = h;
+	const ctx = canvas.getContext('2d');
+	if (!ctx) { bitmap.close(); return blob; }
+	ctx.drawImage(bitmap, 0, 0, w, h);
+	bitmap.close();
+	return new Promise<Blob>((resolve) => {
+		canvas.toBlob((b) => resolve(b ?? blob), 'image/jpeg', 0.92);
 	});
 }
 

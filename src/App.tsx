@@ -6,7 +6,6 @@ import {
   HeaderNavigation,
   HeaderMenuItem,
   HeaderGlobalBar,
-  HeaderGlobalAction,
   Content,
   SkipToContent,
   Theme,
@@ -120,12 +119,14 @@ export default function App() {
           >
             <Information size={18} />
           </Link>
-          <HeaderGlobalAction
+          <button
+            type="button"
             aria-label={theme === 'g100' ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="cds--header__action header-icon-button"
             onClick={toggleTheme}
           >
             {theme === 'g100' ? <Light size={20} /> : <Asleep size={20} />}
-          </HeaderGlobalAction>
+          </button>
         </HeaderGlobalBar>
       </Header>
 

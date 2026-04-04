@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Loading, Tag } from '@carbon/react';
-import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowLeft, ArrowRight } from '@carbon/icons-react';
+import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowLeft, ArrowRight, Download } from '@carbon/icons-react';
 import { useScannerStore, MAX_PAGES, type QuadCrop, type FilterType, type ScannedPage } from '@/stores/scanner';
 import { useManipulatorStore } from '@/stores/manipulator';
 import { addToast } from '@/stores/toast';
-import { processPage, readExifOrientation, exifOrientationToDegrees } from '@/services/filters';
+import { processPage, readExifOrientation, exifOrientationToDegrees, downscaleBlob } from '@/services/filters';
 import { downloadBlob, loadFiles } from '@/services/pdf';
 import CameraView from '@/components/scanner/CameraView';
 import CropEditor from '@/components/scanner/CropEditor';
@@ -95,16 +95,17 @@ export default function ScannerPage() {
     // Batch mode: save directly with default settings, stay on camera
     const state = useScannerStore.getState();
     if (state.pages.length >= MAX_PAGES) {
-      addToast({ kind: 'warning', title: 'Page limit reached', subtitle: 'Maximum 20 pages per session.' });
+      addToast({ kind: 'warning', title: 'Page limit reached', subtitle: `Maximum ${MAX_PAGES} pages per session.` });
       return;
     }
     try {
-      const orientation = await readExifOrientation(blob);
+      const scaled = await downscaleBlob(blob);
+      const orientation = await readExifOrientation(scaled);
       const degrees = exifOrientationToDegrees(orientation);
-      const result = await processPage(blob, 'original', degrees, null, 0);
+      const result = await processPage(scaled, 'original', degrees, null, 0);
       const page: ScannedPage = {
         id: crypto.randomUUID(),
-        originalBlob: blob,
+        originalBlob: scaled,
         processedDataUrl: result.dataUrl,
         thumbnail: result.thumbnail,
         filter: 'original',
@@ -115,7 +116,7 @@ export default function ScannerPage() {
       const added = useScannerStore.getState().addPage(page);
       if (added) {
         const count = useScannerStore.getState().pages.length;
-        addToast({ kind: 'info', title: `Page ${count} captured`, subtitle: 'Tap Done when finished.' });
+        addToast({ kind: 'info', title: `Page ${count} captured`, subtitle: 'Tap Done when finished.', duration: 1200 });
       }
     } catch (err) {
       addToast({ kind: 'error', title: 'Capture failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
@@ -132,15 +133,15 @@ export default function ScannerPage() {
   }, []);
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const fileList = Array.from(e.target.files ?? []);
+    if (fileList.length === 0) return;
     e.target.value = '';
 
-    if (files.length === 1) {
+    if (fileList.length === 1) {
       // Single file → go to preview for editing
-      const file = files[0];
-      captureImage(file);
-      const orientation = await readExifOrientation(file);
+      const scaled = await downscaleBlob(fileList[0]);
+      captureImage(scaled);
+      const orientation = await readExifOrientation(scaled);
       const degrees = exifOrientationToDegrees(orientation);
       if (degrees !== 0) {
         setRotation(degrees);
@@ -154,15 +155,16 @@ export default function ScannerPage() {
       const newPages: ScannedPage[] = [];
       const state = useScannerStore.getState();
       const remaining = MAX_PAGES - state.pages.length;
-      const toProcess = Array.from(files).slice(0, remaining);
+      const toProcess = fileList.slice(0, remaining);
 
       for (const file of toProcess) {
-        const orientation = await readExifOrientation(file);
+        const scaled = await downscaleBlob(file);
+        const orientation = await readExifOrientation(scaled);
         const degrees = exifOrientationToDegrees(orientation);
-        const result = await processPage(file, 'original', degrees, null, 0);
+        const result = await processPage(scaled, 'original', degrees, null, 0);
         newPages.push({
           id: crypto.randomUUID(),
-          originalBlob: file,
+          originalBlob: scaled,
           processedDataUrl: result.dataUrl,
           thumbnail: result.thumbnail,
           filter: 'original',
@@ -178,8 +180,8 @@ export default function ScannerPage() {
         setView('gallery');
       }
 
-      if (files.length > remaining) {
-        addToast({ kind: 'warning', title: 'Page limit reached', subtitle: `Only imported ${remaining} of ${files.length} images.` });
+      if (fileList.length > remaining) {
+        addToast({ kind: 'warning', title: 'Page limit reached', subtitle: `Only imported ${remaining} of ${fileList.length} images.` });
       }
     } catch (err) {
       addToast({ kind: 'error', title: 'Import failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
@@ -192,7 +194,7 @@ export default function ScannerPage() {
     const state = useScannerStore.getState();
     if (!state.currentImage) return;
     if (!state.editingPageId && state.pages.length >= MAX_PAGES) {
-      addToast({ kind: 'warning', title: 'Page limit reached', subtitle: 'Maximum 20 pages per session.' });
+      addToast({ kind: 'warning', title: 'Page limit reached', subtitle: `Maximum ${MAX_PAGES} pages per session.` });
       return;
     }
     setProcessing(true);
@@ -490,9 +492,8 @@ export default function ScannerPage() {
         </div>
       )}
 
-      {view !== 'preview' && (
+      {view === 'idle' && (
       <div className="scanner-page">
-        {view === 'idle' && (
           <>
             <section className="page-header">
               <h1>
@@ -529,8 +530,6 @@ export default function ScannerPage() {
                   maxPages={MAX_PAGES}
                   onEdit={handleEditPage}
                   onDelete={handleDeletePage}
-                  onOpenExport={() => setExportSheetOpen(true)}
-                  onManipulator={handleOpenManipulator}
                 />
               </section>
             ) : (
@@ -541,40 +540,56 @@ export default function ScannerPage() {
               </div>
             )}
           </>
-        )}
+      </div>
+      )}
 
-        {view === 'gallery' && (
-          <>
-            <section className="page-header compact">
-              <h1>
-                Scanned Pages
-                <Tag type="blue" className="page-counter-tag">{pages.length} / {MAX_PAGES}</Tag>
-              </h1>
-            </section>
+      {view === 'gallery' && (
+          <div className="gallery-layout">
+            <div className="gallery-top">
+              <section className="page-header compact">
+                <h1>
+                  Scanned Pages
+                  <Tag type="blue" className="page-counter-tag">{pages.length} / {MAX_PAGES}</Tag>
+                </h1>
+              </section>
 
-            <div className="gallery-actions">
-              <Button kind="tertiary" size="sm" renderIcon={Scan} onClick={handleScanMore}>
-                Scan Another Page
-              </Button>
-              <Button kind="ghost" size="sm" renderIcon={Add} onClick={handleImportClick}>
-                Import Images
-              </Button>
+              <div className="gallery-actions">
+                <Button kind="tertiary" size="sm" renderIcon={Scan} onClick={handleScanMore}>
+                  Scan More Pages
+                </Button>
+                <Button kind="ghost" size="sm" renderIcon={Add} onClick={handleImportClick}>
+                  Import Images
+                </Button>
+              </div>
             </div>
 
-            <section className="gallery-section">
+            <div className="gallery-scroll">
               <PageGallery
                 pages={pages}
                 maxPages={MAX_PAGES}
                 onEdit={handleEditPage}
                 onDelete={handleDeletePage}
-                onOpenExport={() => setExportSheetOpen(true)}
-                onManipulator={handleOpenManipulator}
               />
-            </section>
-          </>
+            </div>
+
+            <div className="gallery-bottom">
+              <Button
+                kind="primary"
+                size="sm"
+                renderIcon={Download}
+                iconDescription="Export"
+                aria-label="Export"
+                hasIconOnly={isMobile}
+                onClick={() => setExportSheetOpen(true)}
+              >
+                {!isMobile ? 'Export' : null}
+              </Button>
+              <Button kind="secondary" size="sm" renderIcon={ArrowRight} onClick={handleOpenManipulator}>
+                Open PDF Tools
+              </Button>
+            </div>
+          </div>
         )}
-      </div>
-      )}
 
       <ActionSheet
         open={exportSheetOpen}

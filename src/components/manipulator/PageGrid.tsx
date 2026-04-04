@@ -21,8 +21,10 @@ import './PageGrid.css';
 interface PageGridProps {
   pages: PageData[];
   selectedIds: Set<string>;
+  selectMode: boolean;
   onSelect: (id: string, e: React.MouseEvent) => void;
   onReorder: (newPages: PageData[]) => void;
+  onDelete?: (id: string) => void;
   onLongPress?: (id: string) => void;
   onContextMenu?: (id: string, x: number, y: number) => void;
 }
@@ -31,12 +33,14 @@ interface SortableItemProps {
   page: PageData;
   index: number;
   selected: boolean;
+  selectMode: boolean;
   onSelect: (id: string, e: React.MouseEvent) => void;
+  onDelete?: (id: string) => void;
   onLongPress?: (id: string) => void;
   onContextMenu?: (id: string, x: number, y: number) => void;
 }
 
-function SortableItem({ page, index, selected, onSelect, onLongPress, onContextMenu }: SortableItemProps) {
+function SortableItem({ page, index, selected, selectMode, onSelect, onDelete, onLongPress, onContextMenu }: SortableItemProps) {
   const {
     attributes,
     listeners,
@@ -58,7 +62,9 @@ function SortableItem({ page, index, selected, onSelect, onLongPress, onContextM
         page={page}
         index={index}
         selected={selected}
+        selectMode={selectMode}
         onClick={(e) => onSelect(page.id, e)}
+        onDelete={onDelete}
         onLongPress={() => onLongPress?.(page.id)}
         onContextMenu={(x, y) => onContextMenu?.(page.id, x, y)}
       />
@@ -67,7 +73,7 @@ function SortableItem({ page, index, selected, onSelect, onLongPress, onContextM
 }
 
 /** Responsive sortable grid of page thumbnails with @dnd-kit drag-drop reorder */
-export default function PageGrid({ pages, selectedIds, onSelect, onReorder, onLongPress, onContextMenu }: PageGridProps) {
+export default function PageGrid({ pages, selectedIds, selectMode, onSelect, onReorder, onDelete, onLongPress, onContextMenu }: PageGridProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
@@ -93,7 +99,9 @@ export default function PageGrid({ pages, selectedIds, onSelect, onReorder, onLo
               page={page}
               index={i}
               selected={selectedIds.has(page.id)}
+              selectMode={selectMode}
               onSelect={onSelect}
+              onDelete={onDelete}
               onLongPress={onLongPress}
               onContextMenu={onContextMenu}
             />

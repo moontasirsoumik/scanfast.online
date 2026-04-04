@@ -106,7 +106,7 @@
 .how-list li {
   counter-increment: howstep;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
   padding: 20px;
   background: var(--cds-layer-01, #0d0d0d);
@@ -119,6 +119,8 @@
   flex-shrink: 0;
   width: 32px;
   height: 32px;
+  margin-top: 0;
+  align-self: center;
   border-radius: 50%;
   background: var(--cds-interactive, #0f62fe);
   color: #fff;

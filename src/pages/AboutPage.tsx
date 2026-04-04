@@ -23,7 +23,7 @@ export default function AboutPage() {
 
           <section className="info-section">
             <div className="info-card">
-              <div className="info-icon"><Security size={20} /></div>
+              <div className="info-icon"><Security size={28} /></div>
               <div>
                 <strong>Privacy</strong>
                 <p>
@@ -35,7 +35,7 @@ export default function AboutPage() {
             </div>
 
             <div className="info-card">
-              <div className="info-icon"><License size={20} /></div>
+              <div className="info-icon"><License size={28} /></div>
               <div>
                 <strong>License</strong>
                 <p>
@@ -46,7 +46,7 @@ export default function AboutPage() {
             </div>
 
             <div className="info-card">
-              <div className="info-icon"><LogoGithub size={20} /></div>
+              <div className="info-icon"><LogoGithub size={28} /></div>
               <div>
                 <strong>Open Source</strong>
                 <p>
@@ -68,16 +68,22 @@ export default function AboutPage() {
             <h2>How it Works</h2>
             <ol className="how-list">
               <li>
-                <strong>Scan or Import</strong>
-                <span>Use your camera to scan documents, or import images and PDFs from your device.</span>
+                <div>
+                  <strong>Scan or Import</strong>
+                  <span>Use your camera to scan documents, or import images and PDFs from your device.</span>
+                </div>
               </li>
               <li>
-                <strong>Edit &amp; Enhance</strong>
-                <span>Crop, rotate, apply filters, and rearrange pages. All processing happens instantly in your browser.</span>
+                <div>
+                  <strong>Edit &amp; Enhance</strong>
+                  <span>Crop, rotate, apply filters, and rearrange pages. All processing happens instantly in your browser.</span>
+                </div>
               </li>
               <li>
-                <strong>Export</strong>
-                <span>Download as PDF or images. Share directly from your device. No account needed.</span>
+                <div>
+                  <strong>Export</strong>
+                  <span>Download as PDF or images. Share directly from your device. No account needed.</span>
+                </div>
               </li>
             </ol>
           </section>
@@ -85,10 +91,10 @@ export default function AboutPage() {
           <section className="shortcuts-section">
             <h2>Keyboard Shortcuts</h2>
             <div className="shortcuts-grid">
-              <div className="shortcut"><kbd>Ctrl</kbd> + <kbd>Z</kbd> <span>Undo</span></div>
-              <div className="shortcut"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> <span>Redo</span></div>
-              <div className="shortcut"><kbd>Ctrl</kbd> + <kbd>A</kbd> <span>Select all</span></div>
-              <div className="shortcut"><kbd>Delete</kbd> <span>Delete selected</span></div>
+              <div className="shortcut"><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Z</kbd> <span>Undo</span></div>
+              <div className="shortcut"><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> <span>Redo</span></div>
+              <div className="shortcut"><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>A</kbd> <span>Select all</span></div>
+              <div className="shortcut"><kbd>Delete</kbd> / <kbd>⌫</kbd> <span>Delete selected</span></div>
               <div className="shortcut"><kbd>←</kbd> <kbd>→</kbd> <span>Navigate pages</span></div>
             </div>
           </section>
@@ -126,7 +132,7 @@ export default function AboutPage() {
           <section className="limits-section">
             <h2>Limitations</h2>
             <ul>
-              <li>Maximum 20 pages per session</li>
+              <li>Maximum 50 pages per session</li>
               <li>Session data is lost on page refresh (no database)</li>
               <li>PDF compression works best on image-heavy PDFs</li>
               <li>Camera scanning requires HTTPS and browser permissions</li>

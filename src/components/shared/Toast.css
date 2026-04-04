@@ -12,6 +12,8 @@
 
 @media (max-width: 671px) {
   .toast-container {
+    top: calc(48px + env(safe-area-inset-top, 0px) + 0.75rem);
+    bottom: auto;
     left: 1rem;
     right: 1rem;
     max-width: none;

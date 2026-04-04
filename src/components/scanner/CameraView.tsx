@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { Button } from '@carbon/react';
-import { SwitchLayer_2 as SwitchLayer, Image as ImageIcon } from '@carbon/icons-react';
+import { SwitchLayer_2 as SwitchLayer, Image as ImageIcon, Close, Checkmark } from '@carbon/icons-react';
 import { startCamera, stopCamera, captureFrame, checkCameraSupport, triggerHaptic } from '@/services/camera';
 import { useScannerStore } from '@/stores/scanner';
 import './CameraView.css';
@@ -11,7 +11,7 @@ interface CameraViewProps {
 }
 
 /** Full-viewport camera view with capture, switch, and gallery fallback */
-export default function CameraView({ onCapture, onClose: _onClose }: CameraViewProps) {
+export default function CameraView({ onCapture, onClose }: CameraViewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -19,6 +19,7 @@ export default function CameraView({ onCapture, onClose: _onClose }: CameraViewP
   const [isCapturing, setIsCapturing] = useState(false);
   const cameraFacing = useScannerStore((s) => s.cameraFacing);
   const setCameraFacing = useScannerStore((s) => s.setCameraFacing);
+  const pageCount = useScannerStore((s) => s.pages.length);
 
   const cleanupCamera = useCallback(() => {
     if (streamRef.current) {
@@ -78,14 +79,26 @@ export default function CameraView({ onCapture, onClose: _onClose }: CameraViewP
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (file) {
       onCapture(file);
     }
-    e.target.value = '';
   };
 
   return (
     <div className="camera-view">
+      <div className="camera-top-bar">
+        <button className="control-btn" onClick={onClose} aria-label="Close camera">
+          <Close size={24} />
+        </button>
+        {pageCount > 0 && (
+          <button className="done-btn" onClick={onClose} aria-label="Done">
+            <Checkmark size={20} />
+            <span>Done ({pageCount})</span>
+          </button>
+        )}
+      </div>
+
       {errorMessage ? (
         <div className="camera-error">
           <p>{errorMessage}</p>

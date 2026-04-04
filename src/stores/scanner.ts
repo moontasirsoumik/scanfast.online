@@ -34,7 +34,7 @@ export interface ScannedPage {
 }
 
 /** Max pages per scanning session */
-export const MAX_PAGES = 20;
+export const MAX_PAGES = 50;
 
 interface ScannerStore {
 	view: ScannerView;

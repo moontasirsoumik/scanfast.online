@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Grid, Column, Tag, Button } from '@carbon/react';
-import { DocumentAdd, Download } from '@carbon/icons-react';
+import { DocumentAdd, Download, Scan, CheckboxCheckedFilled, Checkbox } from '@carbon/icons-react';
 import { useManipulatorStore, MAX_PAGES } from '@/stores/manipulator';
 import { useHistoryStore } from '@/stores/history';
+import { useScannerStore, type ScannedPage } from '@/stores/scanner';
 import { addToast } from '@/stores/toast';
 import {
   loadFiles,
@@ -16,6 +18,7 @@ import {
   type PageData
 } from '@/services/pdf';
 import { createZip } from '@/services/zip';
+import { processPage } from '@/services/filters';
 import Toolbar from '@/components/manipulator/Toolbar';
 import PageGrid from '@/components/manipulator/PageGrid';
 import DropZone from '@/components/manipulator/DropZone';
@@ -23,6 +26,7 @@ import SplitDialog from '@/components/manipulator/SplitDialog';
 import CompressDialog from '@/components/manipulator/CompressDialog';
 import ContextMenu from '@/components/manipulator/ContextMenu';
 import ActionSheet from '@/components/shared/ActionSheet';
+import useIsMobile from '@/hooks/useIsMobile';
 import './ManipulatorPage.css';
 
 /** SplitGroup type for split dialog */
@@ -33,10 +37,13 @@ export interface SplitGroup {
 
 /** PDF Manipulator page — merge, split, rotate, reorder, compress */
 export default function ManipulatorPage() {
+  const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [splitDialogOpen, setSplitDialogOpen] = useState(false);
   const [compressDialogOpen, setCompressDialogOpen] = useState(false);
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ open: boolean; x: number; y: number; pageId: string }>({ open: false, x: 0, y: 0, pageId: '' });
+  const [selectMode, setSelectMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const pages = useManipulatorStore((s) => s.pages);
@@ -56,6 +63,7 @@ export default function ManipulatorPage() {
   const toggleSelect = useManipulatorStore((s) => s.toggleSelect);
   const selectRange = useManipulatorStore((s) => s.selectRange);
   const selectAll = useManipulatorStore((s) => s.selectAll);
+  const clearSelection = useManipulatorStore((s) => s.clearSelection);
 
   const canUndo = useHistoryStore((s) => s.canUndo);
   const canRedo = useHistoryStore((s) => s.canRedo);
@@ -89,7 +97,7 @@ export default function ManipulatorPage() {
       );
 
       if (currentPages.length + newPages.length >= MAX_PAGES) {
-        addToast({ kind: 'warning', title: 'Page limit reached', subtitle: 'Maximum 20 pages per session.' });
+        addToast({ kind: 'warning', title: 'Page limit reached', subtitle: `Maximum ${MAX_PAGES} pages per session.` });
       }
 
       if (newPages.length > 0) {
@@ -297,8 +305,43 @@ export default function ManipulatorPage() {
     }
   }, [setLoading]);
 
+  // --- Open in Scanner ---
+  const handleOpenScanner = useCallback(async () => {
+    const state = useManipulatorStore.getState();
+    if (state.pages.length === 0) return;
+    setLoading(true);
+    try {
+      const scannerPages: ScannedPage[] = [];
+      for (let i = 0; i < state.pages.length; i++) {
+        const blob = await exportPageAsImage(state.pages[i], 'jpeg', 0.92);
+        const result = await processPage(blob, 'original', 0, null, 0);
+        scannerPages.push({
+          id: crypto.randomUUID(),
+          originalBlob: blob,
+          processedDataUrl: result.dataUrl,
+          thumbnail: result.thumbnail,
+          filter: 'original',
+          rotation: 0,
+          straighten: 0,
+          cropRect: null
+        });
+      }
+      useScannerStore.getState().addPages(scannerPages);
+      useScannerStore.getState().setView('gallery');
+      navigate('/scanner');
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Failed to open in Scanner', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading, navigate]);
+
   // --- Selection ---
   const handleSelect = useCallback((id: string, e: React.MouseEvent) => {
+    if (selectMode) {
+      toggleSelect(id, true);
+      return;
+    }
     if (e.shiftKey) {
       selectRange(id);
     } else if (e.ctrlKey || e.metaKey) {
@@ -306,7 +349,31 @@ export default function ManipulatorPage() {
     } else {
       toggleSelect(id, false);
     }
-  }, [selectRange, toggleSelect]);
+  }, [selectRange, toggleSelect, selectMode]);
+
+  const handleToggleSelectMode = useCallback(() => {
+    if (selectMode) {
+      clearSelection();
+    }
+    setSelectMode((prev) => !prev);
+  }, [selectMode, clearSelection]);
+
+  // Exit select mode when selection is cleared externally
+  useEffect(() => {
+    if (selectMode && selectedIds.size === 0) {
+      // Keep select mode on — user may want to select more
+    }
+  }, [selectMode, selectedIds.size]);
+
+  const handleDeleteSingle = useCallback((id: string) => {
+    const snapshot = [...useManipulatorStore.getState().pages];
+    const ids = new Set([id]);
+    execute({
+      description: 'Delete page',
+      execute: () => removePages(ids),
+      undo: () => { setPages(snapshot); setSelectedIds(new Set()); },
+    });
+  }, [execute, removePages, setPages, setSelectedIds]);
 
   // --- Context menu ---
   const handleContextMenu = useCallback((id: string, x: number, y: number) => {
@@ -502,21 +569,70 @@ export default function ManipulatorPage() {
         onChange={handleFileInput}
       />
 
-      <div className="manipulator-page">
-        <Grid>
-          <Column sm={4} md={8} lg={16}>
+      {!hasPages ? (
+        <div className="manipulator-page">
+          <Grid>
+            <Column sm={4} md={8} lg={16}>
+              <section className="page-header">
+                <div className="header-row">
+                  <h1>
+                    PDF Tools
+                    <Tag type="blue" className="page-counter-tag">{pageCount} / {MAX_PAGES}</Tag>
+                  </h1>
+                  <p>Merge, split, rotate, reorder, and compress PDF pages.</p>
+                </div>
+              </section>
+            </Column>
+
+            <Column sm={4} md={8} lg={16}>
+              <Toolbar
+                pageCount={pageCount}
+                selectedCount={selectedCount}
+                canUndo={canUndo}
+                canRedo={canRedo}
+                isLoading={isLoading}
+                maxPages={MAX_PAGES}
+                onRotate={handleRotate}
+                onDuplicate={handleDuplicate}
+                onInsertBlank={handleInsertBlank}
+                onDelete={handleDelete}
+                onSplit={handleSplit}
+                onCompress={handleCompress}
+                onUndo={undo}
+                onRedo={redo}
+                onSelectAll={selectAll}
+              />
+            </Column>
+
+            <Column sm={4} md={8} lg={16}>
+              {isLoading && (
+                <div className="loading-bar">
+                  <div
+                    className="loading-bar-fill"
+                    style={{
+                      width: `${loadProgress[1] > 0 ? (loadProgress[0] / loadProgress[1]) * 100 : 0}%`
+                    }}
+                  />
+                </div>
+              )}
+              {!isLoading && (
+                <DropZone maxPages={MAX_PAGES} onFiles={handleFiles} />
+              )}
+            </Column>
+          </Grid>
+        </div>
+      ) : (
+        <div className="manipulator-layout">
+          <div className="manipulator-top">
             <section className="page-header">
               <div className="header-row">
                 <h1>
                   PDF Tools
                   <Tag type="blue" className="page-counter-tag">{pageCount} / {MAX_PAGES}</Tag>
                 </h1>
-                <p>Merge, split, rotate, reorder, and compress PDF pages.</p>
               </div>
             </section>
-          </Column>
 
-          <Column sm={4} md={8} lg={16}>
             <Toolbar
               pageCount={pageCount}
               selectedCount={selectedCount}
@@ -534,9 +650,23 @@ export default function ManipulatorPage() {
               onRedo={redo}
               onSelectAll={selectAll}
             />
-          </Column>
 
-          <Column sm={4} md={8} lg={16}>
+            <div className="add-more-row">
+              <Button kind="tertiary" size="sm" renderIcon={DocumentAdd} onClick={openFilePicker} disabled={isLoading || pageCount >= MAX_PAGES}>
+                Add More Pages
+              </Button>
+              <Button
+                kind={selectMode ? 'primary' : 'ghost'}
+                size="sm"
+                renderIcon={selectMode ? CheckboxCheckedFilled : Checkbox}
+                onClick={handleToggleSelectMode}
+              >
+                {selectMode ? `${selectedCount} Selected` : 'Select'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="manipulator-scroll">
             {isLoading && (
               <div className="loading-bar">
                 <div
@@ -547,48 +677,43 @@ export default function ManipulatorPage() {
                 />
               </div>
             )}
+            <PageGrid
+              pages={pages}
+              selectedIds={selectedIds}
+              selectMode={selectMode}
+              onSelect={handleSelect}
+              onReorder={handleReorder}
+              onDelete={handleDeleteSingle}
+              onLongPress={(id: string) => { if (!selectMode) { setSelectMode(true); toggleSelect(id, true); } }}
+              onContextMenu={handleContextMenu}
+            />
+          </div>
 
-            {!hasPages && !isLoading && (
-              <DropZone maxPages={MAX_PAGES} onFiles={handleFiles} />
-            )}
-
-            {hasPages && (
-              <>
-                <div className="add-more-row">
-                  <Button kind="tertiary" size="sm" renderIcon={DocumentAdd} onClick={openFilePicker} disabled={isLoading || pageCount >= MAX_PAGES}>
-                    Add Another PDF
-                  </Button>
-                </div>
-                <PageGrid
-                  pages={pages}
-                  selectedIds={selectedIds}
-                  onSelect={handleSelect}
-                  onReorder={handleReorder}
-                  onLongPress={(id: string) => toggleSelect(id, true)}
-                  onContextMenu={handleContextMenu}
-                />
-              </>
-            )}
-          </Column>
-
-          {hasPages && (
-            <Column sm={4} md={8} lg={16}>
-              <div className="export-row">
-                <Button
-                  kind="primary"
-                  size="lg"
-                  renderIcon={Download}
-                  disabled={!hasPages || isLoading}
-                  onClick={() => setExportSheetOpen(true)}
-                  className="export-standalone-btn"
-                >
-                  Export
-                </Button>
-              </div>
-            </Column>
-          )}
-        </Grid>
-      </div>
+          <div className="manipulator-bottom">
+            <Button
+              kind="primary"
+              size="sm"
+              renderIcon={Download}
+              iconDescription="Export"
+              aria-label="Export"
+              hasIconOnly={isMobile}
+              disabled={!hasPages || isLoading}
+              onClick={() => setExportSheetOpen(true)}
+            >
+              {!isMobile ? 'Export' : null}
+            </Button>
+            <Button
+              kind="secondary"
+              size="sm"
+              renderIcon={Scan}
+              disabled={!hasPages || isLoading}
+              onClick={handleOpenScanner}
+            >
+              Open in Scanner
+            </Button>
+          </div>
+        </div>
+      )}
 
       <SplitDialog
         pages={pages}

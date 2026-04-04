@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import type { PageData } from '@/services/pdf';
 
 /** Max pages per session */
-export const MAX_PAGES = 20;
+export const MAX_PAGES = 50;
 
 interface ManipulatorStore {
 	pages: PageData[];
