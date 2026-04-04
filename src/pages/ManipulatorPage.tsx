@@ -66,7 +66,7 @@ export default function ManipulatorPage() {
   const hasPages = pageCount > 0;
 
   useEffect(() => {
-    document.title = 'PDF Manipulator — ScanFastOnline';
+    document.title = 'PDF Tools — ScanFastOnline';
   }, []);
 
   // --- File handling ---
@@ -485,13 +485,11 @@ export default function ManipulatorPage() {
           <Column sm={4} md={8} lg={16}>
             <section className="page-header">
               <div className="header-row">
-                <div>
-                  <h1>PDF Manipulator</h1>
-                  <p>Merge, split, rotate, reorder, and compress PDF pages.</p>
-                </div>
-                <span aria-live="polite">
-                  <Tag type="blue">{pageCount} / {MAX_PAGES} pages</Tag>
-                </span>
+                <h1>
+                  PDF Tools
+                  <Tag type="blue" className="page-counter-tag">{pageCount} / {MAX_PAGES}</Tag>
+                </h1>
+                <p>Merge, split, rotate, reorder, and compress PDF pages.</p>
               </div>
             </section>
           </Column>

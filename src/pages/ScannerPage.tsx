@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Loading } from '@carbon/react';
+import { Button, Loading, Tag } from '@carbon/react';
 import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, Download, ArrowLeft } from '@carbon/icons-react';
 import { useScannerStore, MAX_PAGES, type QuadCrop, type FilterType } from '@/stores/scanner';
 import { useManipulatorStore } from '@/stores/manipulator';
@@ -433,7 +433,12 @@ export default function ScannerPage() {
         {view === 'idle' && (
           <>
             <section className="page-header">
-              <h1>Scanner</h1>
+              <h1>
+                Scanner
+                {pages.length > 0 && (
+                  <Tag type="blue" className="page-counter-tag">{pages.length} / {MAX_PAGES}</Tag>
+                )}
+              </h1>
               <p>Scan documents with your camera or import images from gallery.</p>
             </section>
 
@@ -479,8 +484,10 @@ export default function ScannerPage() {
         {view === 'gallery' && (
           <>
             <section className="page-header compact">
-              <h1>Scanned Pages</h1>
-              <p>{pages.length} / {MAX_PAGES} pages</p>
+              <h1>
+                Scanned Pages
+                <Tag type="blue" className="page-counter-tag">{pages.length} / {MAX_PAGES}</Tag>
+              </h1>
             </section>
 
             <div className="gallery-actions">

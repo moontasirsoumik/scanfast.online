@@ -83,10 +83,20 @@ export default function App() {
         </HeaderName>
 
         <HeaderNavigation aria-label="Main navigation" className="desktop-nav">
-          <HeaderMenuItem as={Link} to="/scanner">
+          <HeaderMenuItem
+            as={Link}
+            to="/scanner"
+            aria-current={location.pathname === '/scanner' ? 'page' : undefined}
+            className={`desktop-nav-link${location.pathname === '/scanner' ? ' is-active' : ''}`}
+          >
             Scanner
           </HeaderMenuItem>
-          <HeaderMenuItem as={Link} to="/manipulator">
+          <HeaderMenuItem
+            as={Link}
+            to="/manipulator"
+            aria-current={location.pathname === '/manipulator' ? 'page' : undefined}
+            className={`desktop-nav-link${location.pathname === '/manipulator' ? ' is-active' : ''}`}
+          >
             PDF Tools
           </HeaderMenuItem>
         </HeaderNavigation>

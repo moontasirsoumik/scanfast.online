@@ -34,6 +34,10 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.context-menu-item {
+  transition: background-color 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
 .context-menu-item:hover,
 .context-menu-item:focus-visible {
   background: var(--cds-background-hover, rgba(141, 141, 141, 0.12));

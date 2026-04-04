@@ -30,7 +30,7 @@
 }
 
 .straighten-hint {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--cds-text-placeholder, #6f6f6f);
   white-space: nowrap;
 }
