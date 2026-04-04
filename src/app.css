@@ -80,6 +80,20 @@
 	--cds-skeleton-background: #0d0d0d;
 }
 
+/* ── Prevent text selection and context menu across the app ── */
+body {
+	-webkit-user-select: none;
+	user-select: none;
+	-webkit-touch-callout: none;
+	touch-action: pan-x pan-y;
+}
+
+/* Allow selection in actual input fields */
+input, textarea, [contenteditable="true"] {
+	-webkit-user-select: text;
+	user-select: text;
+}
+
 /* ── Global resets ── */
 html,
 body {

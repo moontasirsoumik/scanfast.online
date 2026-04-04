@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Loading, Tag } from '@carbon/react';
-import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowLeft, ArrowRight, Download } from '@carbon/icons-react';
+import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowLeft, ArrowRight, Download, ChevronLeft, ChevronRight } from '@carbon/icons-react';
 import { useScannerStore, MAX_PAGES, type QuadCrop, type FilterType, type ScannedPage } from '@/stores/scanner';
 import { useManipulatorStore } from '@/stores/manipulator';
 import { addToast } from '@/stores/toast';
@@ -26,10 +26,12 @@ export default function ScannerPage() {
   const [rawImageUrl, setRawImageUrl] = useState('');
   const [previewScale, setPreviewScale] = useState(1.0);
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
+  const [transition, setTransition] = useState<'none' | 'slide-left' | 'slide-right'>('none');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
   const lastTapRef = useRef(0);
   const swipeRef = useRef<{ startX: number } | null>(null);
+  const wasPinchRef = useRef(false);
 
   const view = useScannerStore((s) => s.view);
   const pages = useScannerStore((s) => s.pages);
@@ -340,6 +342,7 @@ export default function ScannerPage() {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       pinchRef.current = { startDist: Math.hypot(dx, dy), startScale: previewScale };
+      wasPinchRef.current = true;
     } else if (e.touches.length === 1) {
       // Double-tap detection
       const now = Date.now();
@@ -349,10 +352,12 @@ export default function ScannerPage() {
       } else {
         lastTapRef.current = now;
       }
-      // Swipe tracking
-      swipeRef.current = { startX: e.touches[0].clientX };
+      // Swipe tracking — skip during crop mode
+      if (!cropMode) {
+        swipeRef.current = { startX: e.touches[0].clientX };
+      }
     }
-  }, [previewScale]);
+  }, [previewScale, cropMode]);
 
   const handlePreviewTouchMove = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 2 && pinchRef.current) {
@@ -365,25 +370,35 @@ export default function ScannerPage() {
   }, []);
 
   const handlePreviewTouchEnd = useCallback((e: React.TouchEvent) => {
-    // Swipe detection for gallery navigation
-    if (swipeRef.current && e.changedTouches.length === 1 && previewScale <= 1.0) {
+    // Swipe detection for gallery navigation — skip in crop mode or after pinch
+    if (!cropMode && swipeRef.current && !wasPinchRef.current && e.changedTouches.length === 1 && previewScale <= 1.0) {
       const endX = e.changedTouches[0].clientX;
       const delta = endX - swipeRef.current.startX;
       const state = useScannerStore.getState();
-      if (state.editingPageId && Math.abs(delta) > 50) {
+      if (state.editingPageId && Math.abs(delta) > 80) {
         const idx = state.pages.findIndex((p) => p.id === state.editingPageId);
         if (delta > 0 && idx > 0) {
+          setTransition('slide-right');
           setPreviewScale(1.0);
           editPage(state.pages[idx - 1].id);
+          setTimeout(() => setTransition('none'), 250);
         } else if (delta < 0 && idx < state.pages.length - 1) {
+          setTransition('slide-left');
           setPreviewScale(1.0);
           editPage(state.pages[idx + 1].id);
+          setTimeout(() => setTransition('none'), 250);
         }
       }
     }
     pinchRef.current = null;
     swipeRef.current = null;
-  }, [previewScale, editPage]);
+    wasPinchRef.current = false;
+  }, [cropMode, previewScale, editPage]);
+
+  // --- Navigation hint visibility ---
+  const currentIdx = editingPageId ? pages.findIndex((p) => p.id === editingPageId) : -1;
+  const showPrevHint = !cropMode && editingPageId !== null && currentIdx > 0;
+  const showNextHint = !cropMode && editingPageId !== null && currentIdx >= 0 && currentIdx < pages.length - 1;
 
   // --- Render ---
   if (view === 'camera') {
@@ -414,12 +429,23 @@ export default function ScannerPage() {
               <img
                 src={previewUrl}
                 alt="Preview"
-                className={`preview-image${previewScale !== 1 ? ' zoomed' : ''}`}
+                className={`preview-image${previewScale !== 1 ? ' zoomed' : ''}${transition !== 'none' ? ` ${transition}` : ''}`}
                 style={{ transform: `scale(${previewScale})` }}
               />
             ) : (
               <div className="preview-loading">
                 <Loading withOverlay={false} small />
+              </div>
+            )}
+
+            {showPrevHint && (
+              <div className="nav-hint nav-hint--left" aria-hidden="true">
+                <ChevronLeft size={16} />
+              </div>
+            )}
+            {showNextHint && (
+              <div className="nav-hint nav-hint--right" aria-hidden="true">
+                <ChevronRight size={16} />
               </div>
             )}
 
