@@ -63,7 +63,6 @@ export default function PageThumbnail({ page, index, selected, selectMode, onCli
       onTouchMove={clearLongPress}
       onTouchCancel={clearLongPress}
       onKeyDown={(e) => { if (e.key === 'Enter') onClick(e as unknown as React.MouseEvent); }}
-      title={`${page.sourceFile} — Page ${index + 1}`}
       aria-label={`Page ${index + 1} — ${page.sourceFile}`}
       aria-pressed={selected}
     >

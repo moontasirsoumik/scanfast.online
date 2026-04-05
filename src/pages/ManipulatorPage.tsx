@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Grid, Column, Tag, Button } from '@carbon/react';
-import { DocumentAdd, Download, Scan, CheckboxCheckedFilled, Checkbox } from '@carbon/icons-react';
+import { Grid, Column, Tag, Button, Loading } from '@carbon/react';
+import { DocumentAdd, Download, Scan, CheckboxCheckedFilled, Checkbox, Close, ChevronLeft, ChevronRight } from '@carbon/icons-react';
 import { useManipulatorStore, MAX_PAGES } from '@/stores/manipulator';
 import { useHistoryStore } from '@/stores/history';
 import { useScannerStore, type ScannedPage } from '@/stores/scanner';
@@ -35,6 +35,10 @@ export interface SplitGroup {
   pageIndices: number[];
 }
 
+function clampPreviewScale(scale: number): number {
+  return Math.min(5, Math.max(1, scale));
+}
+
 /** PDF Manipulator page — merge, split, rotate, reorder, compress */
 export default function ManipulatorPage() {
   const navigate = useNavigate();
@@ -44,7 +48,21 @@ export default function ManipulatorPage() {
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ open: boolean; x: number; y: number; pageId: string }>({ open: false, x: 0, y: 0, pageId: '' });
   const [selectMode, setSelectMode] = useState(false);
+  const [previewPageId, setPreviewPageId] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewScale, setPreviewScale] = useState(1);
+  const [previewTransition, setPreviewTransition] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingPreviewEnterRef = useRef('');
+  const closePreviewButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previousPreviewButtonRef = useRef<HTMLButtonElement | null>(null);
+  const nextPreviewButtonRef = useRef<HTMLButtonElement | null>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const previewPinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
+  const previewSwipeRef = useRef<{ startX: number } | null>(null);
+  const previewLastTapRef = useRef(0);
+  const previewWasPinchRef = useRef(false);
 
   const pages = useManipulatorStore((s) => s.pages);
   const selectedIds = useManipulatorStore((s) => s.selectedIds);
@@ -74,10 +92,86 @@ export default function ManipulatorPage() {
   const pageCount = pages.length;
   const selectedCount = selectedIds.size;
   const hasPages = pageCount > 0;
+  const previewIndex = previewPageId ? pages.findIndex((page) => page.id === previewPageId) : -1;
+  const previewPage = previewIndex >= 0 ? pages[previewIndex] : null;
+  const previewOpen = previewPage !== null;
 
   useEffect(() => {
     document.title = 'PDF Tools — ScanFastOnline';
   }, []);
+
+  useEffect(() => {
+    if (previewOpen) {
+      restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const frame = window.requestAnimationFrame(() => {
+        closePreviewButtonRef.current?.focus();
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+
+    restoreFocusRef.current?.focus();
+    restoreFocusRef.current = null;
+    return undefined;
+  }, [previewOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  useEffect(() => {
+    if (!previewPage) {
+      setPreviewLoading(false);
+      setPreviewScale(1);
+      setPreviewUrl((current) => {
+        if (current) {
+          URL.revokeObjectURL(current);
+        }
+        return '';
+      });
+      return;
+    }
+
+    let cancelled = false;
+    setPreviewLoading(true);
+
+    const maxPreviewWidth = Math.min(Math.max(window.innerWidth * (window.devicePixelRatio || 1), 1600), 2800);
+
+    exportPageAsImage(previewPage, 'png', 1, maxPreviewWidth)
+      .then((blob) => {
+        if (cancelled) {
+          return;
+        }
+        const nextUrl = URL.createObjectURL(blob);
+        setPreviewUrl((current) => {
+          if (current) {
+            URL.revokeObjectURL(current);
+          }
+          return nextUrl;
+        });
+        setPreviewLoading(false);
+        if (pendingPreviewEnterRef.current) {
+          setPreviewTransition(pendingPreviewEnterRef.current);
+          pendingPreviewEnterRef.current = '';
+          setTimeout(() => setPreviewTransition(''), 200);
+        }
+      })
+      .catch((err) => {
+        if (cancelled) {
+          return;
+        }
+        setPreviewLoading(false);
+        pendingPreviewEnterRef.current = '';
+        addToast({ kind: 'error', title: 'Preview failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [previewPage]);
 
   // --- File handling ---
   const handleFiles = useCallback(async (files: File[]) => {
@@ -337,6 +431,29 @@ export default function ManipulatorPage() {
   }, [setLoading, navigate]);
 
   // --- Selection ---
+  const closePreview = useCallback(() => {
+    setPreviewPageId(null);
+    setPreviewScale(1);
+  }, []);
+
+  const navigatePreviewPage = useCallback((direction: -1 | 1) => {
+    if (!previewOpen) return;
+    const nextIndex = previewIndex + direction;
+    if (nextIndex < 0 || nextIndex >= pages.length) {
+      return;
+    }
+
+    const exitClass = direction === 1 ? 'sf-slide-exit-left' : 'sf-slide-exit-right';
+    const enterClass = direction === 1 ? 'sf-slide-enter-right' : 'sf-slide-enter-left';
+
+    setPreviewTransition(exitClass);
+    setTimeout(() => {
+      pendingPreviewEnterRef.current = enterClass;
+      setPreviewPageId(pages[nextIndex].id);
+      setPreviewScale(1);
+    }, 150);
+  }, [pages, previewIndex, previewOpen]);
+
   const handleSelect = useCallback((id: string, e: React.MouseEvent) => {
     if (selectMode) {
       toggleSelect(id, true);
@@ -347,7 +464,8 @@ export default function ManipulatorPage() {
     } else if (e.ctrlKey || e.metaKey) {
       toggleSelect(id, true);
     } else {
-      toggleSelect(id, false);
+      setPreviewPageId(id);
+      setPreviewScale(1);
     }
   }, [selectRange, toggleSelect, selectMode]);
 
@@ -355,8 +473,11 @@ export default function ManipulatorPage() {
     if (selectMode) {
       clearSelection();
     }
+    if (previewOpen) {
+      closePreview();
+    }
     setSelectMode((prev) => !prev);
-  }, [selectMode, clearSelection]);
+  }, [clearSelection, closePreview, previewOpen, selectMode]);
 
   // Exit select mode when selection is cleared externally
   useEffect(() => {
@@ -508,6 +629,41 @@ export default function ManipulatorPage() {
   // --- Keyboard shortcuts ---
   useEffect(() => {
     function handleKeydown(e: KeyboardEvent) {
+      if (previewOpen) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closePreview();
+          return;
+        }
+        if (e.key === 'Tab') {
+          const focusableButtons = [
+            closePreviewButtonRef.current,
+            !isMobile && previewIndex > 0 ? previousPreviewButtonRef.current : null,
+            !isMobile && previewIndex < pages.length - 1 ? nextPreviewButtonRef.current : null,
+          ].filter((button): button is HTMLButtonElement => button !== null);
+
+          if (focusableButtons.length > 0) {
+            e.preventDefault();
+            const currentButtonIndex = focusableButtons.findIndex((button) => button === document.activeElement);
+            const nextButtonIndex = e.shiftKey
+              ? (currentButtonIndex <= 0 ? focusableButtons.length - 1 : currentButtonIndex - 1)
+              : (currentButtonIndex === -1 || currentButtonIndex === focusableButtons.length - 1 ? 0 : currentButtonIndex + 1);
+            focusableButtons[nextButtonIndex].focus();
+          }
+          return;
+        }
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          navigatePreviewPage(-1);
+          return;
+        }
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          navigatePreviewPage(1);
+          return;
+        }
+      }
+
       if (e.key === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
         e.preventDefault();
         useHistoryStore.getState().redo();
@@ -556,7 +712,57 @@ export default function ManipulatorPage() {
 
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
+  }, [closePreview, isMobile, navigatePreviewPage, pages.length, previewIndex, previewOpen]);
+
+  const handlePreviewWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.2 : -0.2;
+    setPreviewScale((current) => clampPreviewScale(current + delta));
   }, []);
+
+  const handlePreviewTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      previewPinchRef.current = { startDist: Math.hypot(dx, dy), startScale: previewScale };
+      previewWasPinchRef.current = true;
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      const now = Date.now();
+      if (now - previewLastTapRef.current < 300) {
+        setPreviewScale(1);
+        previewLastTapRef.current = 0;
+      } else {
+        previewLastTapRef.current = now;
+      }
+      previewSwipeRef.current = { startX: e.touches[0].clientX };
+    }
+  }, [previewScale]);
+
+  const handlePreviewTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2 && previewPinchRef.current) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const distance = Math.hypot(dx, dy);
+      const nextScale = previewPinchRef.current.startScale * (distance / previewPinchRef.current.startDist);
+      setPreviewScale(clampPreviewScale(nextScale));
+    }
+  }, []);
+
+  const handlePreviewTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (previewSwipeRef.current && !previewWasPinchRef.current && e.changedTouches.length === 1 && previewScale <= 1.02) {
+      const delta = e.changedTouches[0].clientX - previewSwipeRef.current.startX;
+      if (Math.abs(delta) > 60) {
+        navigatePreviewPage(delta > 0 ? -1 : 1);
+      }
+    }
+
+    previewPinchRef.current = null;
+    previewSwipeRef.current = null;
+    previewWasPinchRef.current = false;
+  }, [navigatePreviewPage, previewScale]);
 
   return (
     <>
@@ -711,6 +917,78 @@ export default function ManipulatorPage() {
             >
               Open in Scanner
             </Button>
+          </div>
+        </div>
+      )}
+
+      {previewOpen && (
+        <div className="manipulator-preview-overlay" role="dialog" aria-modal={true} aria-label={`Page ${previewIndex + 1} preview`}>
+          <div
+            className="manipulator-preview-stage"
+            onWheel={handlePreviewWheel}
+            onTouchStart={handlePreviewTouchStart}
+            onTouchMove={handlePreviewTouchMove}
+            onTouchEnd={handlePreviewTouchEnd}
+            onTouchCancel={handlePreviewTouchEnd}
+          >
+            <div className="sf-preview-header">
+              <div className="sf-preview-counter" aria-live="polite">{previewIndex + 1} / {pages.length}</div>
+              <Button
+                ref={closePreviewButtonRef}
+                className="sf-preview-close"
+                kind="ghost"
+                size="sm"
+                hasIconOnly
+                renderIcon={Close}
+                iconDescription="Close preview"
+                aria-label="Close preview"
+                tooltipAlignment="end"
+                onClick={closePreview}
+              />
+            </div>
+
+            {!isMobile && previewIndex > 0 && (
+              <Button
+                ref={previousPreviewButtonRef}
+                className="sf-preview-nav-button sf-preview-nav-button--left"
+                kind="ghost"
+                size="sm"
+                hasIconOnly
+                renderIcon={ChevronLeft}
+                iconDescription="Previous page"
+                aria-label="Previous page"
+                onClick={() => navigatePreviewPage(-1)}
+              />
+            )}
+
+            {previewUrl && (
+              <img
+                src={previewUrl}
+                alt={`Page ${previewIndex + 1}`}
+                className={`manipulator-preview-image${previewScale !== 1 ? ' zoomed' : ''}${previewTransition ? ` ${previewTransition}` : ''}`}
+                style={{ transform: `scale(${previewScale})` }}
+              />
+            )}
+
+            {!isMobile && previewIndex < pages.length - 1 && (
+              <Button
+                ref={nextPreviewButtonRef}
+                className="sf-preview-nav-button sf-preview-nav-button--right"
+                kind="ghost"
+                size="sm"
+                hasIconOnly
+                renderIcon={ChevronRight}
+                iconDescription="Next page"
+                aria-label="Next page"
+                onClick={() => navigatePreviewPage(1)}
+              />
+            )}
+
+            {previewLoading && (
+              <div className="sf-preview-loader">
+                <Loading withOverlay={false} small description="Rendering page…" />
+              </div>
+            )}
           </div>
         </div>
       )}

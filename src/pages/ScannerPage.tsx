@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Loading, Tag } from '@carbon/react';
-import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowLeft, ArrowRight, Download, ChevronLeft, ChevronRight } from '@carbon/icons-react';
+import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowLeft, ArrowRight, Download, ChevronLeft, ChevronRight, Close } from '@carbon/icons-react';
 import { useScannerStore, MAX_PAGES, type QuadCrop, type FilterType, type ScannedPage } from '@/stores/scanner';
 import { useManipulatorStore } from '@/stores/manipulator';
 import { addToast } from '@/stores/toast';
@@ -16,6 +16,10 @@ import ActionSheet from '@/components/shared/ActionSheet';
 import useIsMobile from '@/hooks/useIsMobile';
 import './ScannerPage.css';
 
+function clampPreviewScale(scale: number): number {
+  return Math.min(5, Math.max(1, scale));
+}
+
 /** Scanner page — capture, crop, filter, and manage scanned pages */
 export default function ScannerPage() {
   const navigate = useNavigate();
@@ -26,12 +30,13 @@ export default function ScannerPage() {
   const [cropBaseUrl, setCropBaseUrl] = useState('');
   const [previewScale, setPreviewScale] = useState(1.0);
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
-  const [transition, setTransition] = useState<'none' | 'slide-left' | 'slide-right'>('none');
+  const [transition, setTransition] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
   const lastTapRef = useRef(0);
   const swipeRef = useRef<{ startX: number } | null>(null);
   const wasPinchRef = useRef(false);
+  const pendingEnterRef = useRef('');
 
   const view = useScannerStore((s) => s.view);
   const pages = useScannerStore((s) => s.pages);
@@ -72,6 +77,18 @@ export default function ScannerPage() {
         if (!cancelled) {
           setPreviewUrl(result.dataUrl);
           setProcessing(false);
+          if (pendingEnterRef.current) {
+            setTransition(pendingEnterRef.current);
+            pendingEnterRef.current = '';
+            setTimeout(() => setTransition(''), 200);
+          }
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setProcessing(false);
+          pendingEnterRef.current = '';
+          addToast({ kind: 'error', title: 'Preview failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
         }
       });
     return () => { cancelled = true; };
@@ -88,6 +105,11 @@ export default function ScannerPage() {
     processPage(currentImage, currentFilter, currentRotation, null, currentStraighten)
       .then((result) => {
         if (!cancelled) setCropBaseUrl(result.dataUrl);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCropBaseUrl('');
+        }
       });
     return () => { cancelled = true; };
   }, [currentImage, currentFilter, currentRotation, currentStraighten]);
@@ -221,14 +243,20 @@ export default function ScannerPage() {
     }
   }, [setProcessing, savePage]);
 
-  const handleRetake = useCallback(() => {
+  const handlePreviewClose = useCallback(() => {
     setCropMode(false);
     setDraftCrop(null);
     setPreviewScale(1.0);
+    setTransition('');
+    pendingEnterRef.current = '';
     resetPreview();
     const state = useScannerStore.getState();
     setView(state.pages.length > 0 ? 'gallery' : 'idle');
   }, [resetPreview, setView]);
+
+  const handleRetake = useCallback(() => {
+    handlePreviewClose();
+  }, [handlePreviewClose]);
 
   const handleToggleCrop = useCallback(() => {
     setDraftCrop(currentCrop);
@@ -382,6 +410,70 @@ export default function ScannerPage() {
     setView('camera');
   }, [setView]);
 
+  const navigatePreviewPage = useCallback(async (direction: 'previous' | 'next') => {
+    const state = useScannerStore.getState();
+    if (!state.editingPageId || !state.currentImage) {
+      return;
+    }
+
+    const currentIndex = state.pages.findIndex((page) => page.id === state.editingPageId);
+    if (currentIndex === -1) {
+      return;
+    }
+
+    const nextIndex = direction === 'previous' ? currentIndex - 1 : currentIndex + 1;
+    if (nextIndex < 0 || nextIndex >= state.pages.length) {
+      return;
+    }
+
+    setProcessing(true);
+
+    try {
+      const result = await processPage(
+        state.currentImage,
+        state.currentFilter,
+        state.currentRotation,
+        state.currentCrop,
+        state.currentStraighten
+      );
+
+      useScannerStore.setState((currentState) => ({
+        pages: currentState.pages.map((page) => (
+          page.id === state.editingPageId
+            ? {
+                ...page,
+                originalBlob: state.currentImage as Blob,
+                processedDataUrl: result.dataUrl,
+                thumbnail: result.thumbnail,
+                filter: state.currentFilter,
+                rotation: state.currentRotation,
+                straighten: state.currentStraighten,
+                cropRect: state.currentCrop
+              }
+            : page
+        ))
+      }));
+    } catch (err) {
+      setProcessing(false);
+      addToast({ kind: 'error', title: 'Could not change page', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+      return;
+    }
+
+    setProcessing(false);
+
+    const exitClass = direction === 'next' ? 'sf-slide-exit-left' : 'sf-slide-exit-right';
+    const enterClass = direction === 'next' ? 'sf-slide-enter-right' : 'sf-slide-enter-left';
+
+    setTransition(exitClass);
+    setTimeout(() => {
+      pendingEnterRef.current = enterClass;
+      setPreviewScale(1.0);
+      setCropMode(false);
+      setDraftCrop(null);
+      editPage(state.pages[nextIndex].id);
+    }, 150);
+  }, [editPage, setProcessing]);
+
   // --- Preview pinch-to-zoom handlers ---
   const handlePreviewTouchStart = useCallback((e: React.TouchEvent) => {
     if (cropMode) return;
@@ -412,41 +504,73 @@ export default function ScannerPage() {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       const dist = Math.hypot(dx, dy);
-      const newScale = Math.min(5.0, Math.max(0.5, pinchRef.current.startScale * (dist / pinchRef.current.startDist)));
+      const newScale = clampPreviewScale(pinchRef.current.startScale * (dist / pinchRef.current.startDist));
       setPreviewScale(newScale);
     }
   }, [cropMode]);
 
   const handlePreviewTouchEnd = useCallback((e: React.TouchEvent) => {
     // Swipe detection for gallery navigation — skip in crop mode or after pinch
-    if (!cropMode && swipeRef.current && !wasPinchRef.current && e.changedTouches.length === 1 && previewScale <= 1.0) {
+    if (!cropMode && swipeRef.current && !wasPinchRef.current && e.changedTouches.length === 1 && previewScale <= 1.02) {
       const endX = e.changedTouches[0].clientX;
       const delta = endX - swipeRef.current.startX;
-      const state = useScannerStore.getState();
-      if (state.editingPageId && Math.abs(delta) > 80) {
-        const idx = state.pages.findIndex((p) => p.id === state.editingPageId);
-        if (delta > 0 && idx > 0) {
-          setTransition('slide-right');
-          setPreviewScale(1.0);
-          editPage(state.pages[idx - 1].id);
-          setTimeout(() => setTransition('none'), 250);
-        } else if (delta < 0 && idx < state.pages.length - 1) {
-          setTransition('slide-left');
-          setPreviewScale(1.0);
-          editPage(state.pages[idx + 1].id);
-          setTimeout(() => setTransition('none'), 250);
+      if (Math.abs(delta) > 80) {
+        if (delta > 0) {
+          void navigatePreviewPage('previous');
+        } else {
+          void navigatePreviewPage('next');
         }
       }
     }
     pinchRef.current = null;
     swipeRef.current = null;
     wasPinchRef.current = false;
-  }, [cropMode, previewScale, editPage]);
+  }, [cropMode, navigatePreviewPage, previewScale]);
+
+  const handlePreviewWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    if (cropMode) {
+      return;
+    }
+
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.2 : -0.2;
+    setPreviewScale((current) => clampPreviewScale(current + delta));
+  }, [cropMode]);
+
+  useEffect(() => {
+    if (view !== 'preview') {
+      return;
+    }
+
+    const handlePreviewKeydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        handlePreviewClose();
+        return;
+      }
+
+      if (cropMode || !editingPageId) {
+        return;
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        void navigatePreviewPage('previous');
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        void navigatePreviewPage('next');
+      }
+    };
+
+    window.addEventListener('keydown', handlePreviewKeydown);
+    return () => window.removeEventListener('keydown', handlePreviewKeydown);
+  }, [cropMode, editingPageId, handlePreviewClose, navigatePreviewPage, view]);
 
   // --- Navigation hint visibility ---
   const currentIdx = editingPageId ? pages.findIndex((p) => p.id === editingPageId) : -1;
-  const showPrevHint = !cropMode && editingPageId !== null && currentIdx > 0;
-  const showNextHint = !cropMode && editingPageId !== null && currentIdx >= 0 && currentIdx < pages.length - 1;
+  const showPrevButton = !cropMode && !isMobile && editingPageId !== null && currentIdx > 0;
+  const showNextButton = !cropMode && !isMobile && editingPageId !== null && currentIdx >= 0 && currentIdx < pages.length - 1;
+  const previewCounterLabel = editingPageId !== null && currentIdx >= 0 ? `${currentIdx + 1} / ${pages.length}` : 'New page';
 
   // --- Render ---
   if (view === 'camera') {
@@ -468,32 +592,65 @@ export default function ScannerPage() {
         <div className="preview-layout">
           <div
             className="preview-area"
+            onWheel={handlePreviewWheel}
             onTouchStart={handlePreviewTouchStart}
             onTouchMove={handlePreviewTouchMove}
             onTouchEnd={handlePreviewTouchEnd}
             onTouchCancel={handlePreviewTouchEnd}
           >
-            {previewUrl ? (
+            <div className="sf-preview-header">
+              <div className="sf-preview-counter" aria-live="polite">{previewCounterLabel}</div>
+              <Button
+                className="sf-preview-close"
+                kind="ghost"
+                size="sm"
+                hasIconOnly
+                renderIcon={Close}
+                iconDescription="Close preview"
+                aria-label="Close preview"
+                tooltipAlignment="end"
+                onClick={handlePreviewClose}
+              />
+            </div>
+
+            {showPrevButton && (
+              <Button
+                className="sf-preview-nav-button sf-preview-nav-button--left"
+                kind="ghost"
+                size="sm"
+                hasIconOnly
+                renderIcon={ChevronLeft}
+                iconDescription="Previous page"
+                aria-label="Previous page"
+                onClick={() => { void navigatePreviewPage('previous'); }}
+              />
+            )}
+
+            {previewUrl && (
               <img
                 src={previewUrl}
                 alt="Preview"
-                className={`preview-image${previewScale !== 1 ? ' zoomed' : ''}${transition !== 'none' ? ` ${transition}` : ''}`}
+                className={`preview-image${previewScale !== 1 ? ' zoomed' : ''}${transition ? ` ${transition}` : ''}`}
                 style={{ transform: `scale(${previewScale})` }}
               />
-            ) : (
-              <div className="preview-loading">
-                <Loading withOverlay={false} small />
-              </div>
             )}
 
-            {showPrevHint && (
-              <div className="nav-hint nav-hint--left" aria-hidden="true">
-                <ChevronLeft size={16} />
-              </div>
+            {showNextButton && (
+              <Button
+                className="sf-preview-nav-button sf-preview-nav-button--right"
+                kind="ghost"
+                size="sm"
+                hasIconOnly
+                renderIcon={ChevronRight}
+                iconDescription="Next page"
+                aria-label="Next page"
+                onClick={() => { void navigatePreviewPage('next'); }}
+              />
             )}
-            {showNextHint && (
-              <div className="nav-hint nav-hint--right" aria-hidden="true">
-                <ChevronRight size={16} />
+
+            {isProcessing && (
+              <div className="sf-preview-loader">
+                <Loading withOverlay={false} small description="Processing…" />
               </div>
             )}
 
@@ -691,7 +848,7 @@ export default function ScannerPage() {
         ]}
       />
 
-      {isProcessing && (
+      {isProcessing && view !== 'preview' && (
         <div className="processing-overlay">
           <Loading withOverlay={false} small description="Processing…" />
         </div>

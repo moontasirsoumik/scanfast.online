@@ -45,6 +45,7 @@
 
 .thumb-card.dragging {
   opacity: 0.5;
+  z-index: 20;
 }
 
 .thumb-img {
@@ -52,6 +53,7 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  pointer-events: none;
 }
 
 .page-badge {
