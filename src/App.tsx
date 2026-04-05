@@ -83,7 +83,9 @@ export default function App() {
       <Header aria-label="ScanFastOnline">
         <SkipToContent />
         <HeaderName as={Link} to="/" prefix="">
-          ScanFast<span className="brand-tld">Online</span>
+          <span className="word-scan">Scan</span>
+          <span className="word-fast">Fast</span>
+          <span className="brand-tld word-online">Online</span>
         </HeaderName>
 
         <HeaderNavigation aria-label="Main navigation" className="desktop-nav">
