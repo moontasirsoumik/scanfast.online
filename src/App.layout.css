@@ -38,11 +38,55 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   font-size: 1.2rem;
-  animation: sf-logo-reveal 900ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
 }
 
-.cds--header__name .brand-tld {
-  animation: sf-logo-tld 500ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 500ms both;
+/* ── Header brand: three-word animation (matches HomePage) ── */
+.cds--header__name .word-scan {
+  display: inline-block;
+  position: relative;
+  clip-path: inset(100% 0 0 0);
+  animation: scan-reveal 700ms cubic-bezier(0.4, 0, 0.2, 1) 100ms forwards;
+}
+
+.cds--header__name .word-scan::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  height: 2px;
+  top: 0;
+  background: linear-gradient(90deg, transparent, #528bff 20%, #0f62fe 50%, #528bff 80%, transparent);
+  box-shadow: 0 0 8px 1px rgba(15, 98, 254, 0.5);
+  border-radius: 2px;
+  opacity: 0;
+  animation: scan-bar 700ms cubic-bezier(0.4, 0, 0.2, 1) 100ms forwards;
+}
+
+.cds--header__name .word-fast {
+  display: inline-block;
+  opacity: 0;
+  animation: fast-in 250ms cubic-bezier(0, 0.55, 0.45, 1) 700ms both;
+}
+
+.cds--header__name .word-online {
+  display: inline-block;
+  opacity: 0;
+  animation: online-flicker 600ms linear 920ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cds--header__name .word-scan,
+  .cds--header__name .word-fast,
+  .cds--header__name .word-online {
+    animation: none !important;
+    opacity: 1 !important;
+    clip-path: none !important;
+    filter: none !important;
+  }
+  .cds--header__name .word-scan::after {
+    animation: none !important;
+    opacity: 0 !important;
+  }
 }
 
 .desktop-nav {
