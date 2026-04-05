@@ -13,7 +13,11 @@ export default function HomePage() {
   return (
     <div className="landing">
       <section className="hero">
-        <h1>ScanFast<span className="brand-tld">Online</span></h1>
+        <h1>
+          <span className="word-scan">Scan</span>
+          <span className="word-fast">Fast</span>
+          <span className="brand-tld word-online">Online</span>
+        </h1>
         <p className="hero-sub">
           Scan documents and edit PDFs — right in your browser. Free and private.
         </p>

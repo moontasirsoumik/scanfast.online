@@ -146,37 +146,43 @@ a,
 	}
 }
 
-/* ── Logo launch animation ── */
-@keyframes sf-logo-reveal {
-	0% {
+/* ── Shared brand word animations ── */
+@keyframes scan-reveal {
+	from { clip-path: inset(100% 0 0 0); }
+	to   { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes scan-bar {
+	0%   { top: 100%; opacity: 1; }
+	85%  { opacity: 1; }
+	100% { top: -2px; opacity: 0; }
+}
+
+@keyframes fast-in {
+	from {
 		opacity: 0;
-		letter-spacing: 0.25em;
+		transform: translateX(-30px);
 		filter: blur(8px);
 	}
 	60% {
 		opacity: 1;
-		letter-spacing: 0.06em;
-		filter: blur(0);
+		filter: blur(2px);
 	}
-	80% {
-		letter-spacing: 0.03em;
-	}
-	100% {
+	to {
 		opacity: 1;
-		letter-spacing: 0.04em;
+		transform: translateX(0);
 		filter: blur(0);
 	}
 }
 
-@keyframes sf-logo-tld {
-	0% {
-		opacity: 0;
-		transform: translateX(-4px);
-	}
-	100% {
-		opacity: 1;
-		transform: translateX(0);
-	}
+@keyframes online-flicker {
+	0%, 12%   { opacity: 0; }
+	13%, 20%  { opacity: 0.8; text-shadow: 0 0 10px rgba(15, 98, 254, 0.7); }
+	21%, 28%  { opacity: 0; }
+	29%, 38%  { opacity: 0.6; text-shadow: 0 0 8px rgba(15, 98, 254, 0.5); }
+	39%, 42%  { opacity: 0.1; }
+	43%, 80%  { opacity: 1; text-shadow: 0 0 6px rgba(15, 98, 254, 0.3); }
+	100%      { opacity: 1; text-shadow: none; }
 }
 
 /* ── Carbon font override ── */

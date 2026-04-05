@@ -28,7 +28,62 @@
   margin: 0 0 12px;
   color: var(--cds-text-primary, #f4f4f4);
   letter-spacing: -0.03em;
-  animation: sf-fade-in 500ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+}
+
+/* ── Scan: vertical scanner sweep with bar ── */
+.word-scan {
+  display: inline-block;
+  position: relative;
+  color: var(--cds-text-primary, #f4f4f4);
+  clip-path: inset(100% 0 0 0);
+  animation: scan-reveal 800ms cubic-bezier(0.4, 0, 0.2, 1) 200ms forwards;
+}
+
+.word-scan::after {
+  content: '';
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  height: 3px;
+  top: 0;
+  background: linear-gradient(90deg, transparent, #528bff 20%, #0f62fe 50%, #528bff 80%, transparent);
+  box-shadow: 0 0 12px 2px rgba(15, 98, 254, 0.6), 0 0 4px 1px rgba(82, 139, 255, 0.4);
+  border-radius: 2px;
+  opacity: 0;
+  animation: scan-bar 800ms cubic-bezier(0.4, 0, 0.2, 1) 200ms forwards;
+}
+
+/* ── Fast: speed-blur entrance ── */
+.word-fast {
+  display: inline-block;
+  opacity: 0;
+  animation: fast-in 280ms cubic-bezier(0, 0.55, 0.45, 1) 950ms both;
+}
+
+/* ── Online: digital-flicker power-on ── */
+.word-online {
+  display: inline-block;
+  opacity: 0;
+  animation: online-flicker 700ms linear 1200ms both;
+}
+
+/* ── Respect reduced-motion preference ── */
+@media (prefers-reduced-motion: reduce) {
+  .word-scan,
+  .word-fast,
+  .word-online {
+    animation: none !important;
+    opacity: 1 !important;
+    clip-path: none !important;
+    filter: none !important;
+  }
+  .word-scan::after {
+    animation: none !important;
+    opacity: 0 !important;
+  }
 }
 
 .hero-sub {
