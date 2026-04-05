@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Grid, Column, Tag, Button } from '@carbon/react';
 import { DocumentAdd, Download, Scan, CheckboxCheckedFilled, Checkbox } from '@carbon/icons-react';
@@ -25,6 +25,7 @@ import DropZone from '@/components/manipulator/DropZone';
 import SplitDialog from '@/components/manipulator/SplitDialog';
 import CompressDialog from '@/components/manipulator/CompressDialog';
 import ContextMenu from '@/components/manipulator/ContextMenu';
+import PagePreview from '@/components/manipulator/PagePreview';
 import ActionSheet from '@/components/shared/ActionSheet';
 import useIsMobile from '@/hooks/useIsMobile';
 import './ManipulatorPage.css';
@@ -35,7 +36,7 @@ export interface SplitGroup {
   pageIndices: number[];
 }
 
-/** PDF Manipulator page — merge, split, rotate, reorder, compress */
+/** PDF Manipulator page â€” merge, split, rotate, reorder, compress */
 export default function ManipulatorPage() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -44,6 +45,7 @@ export default function ManipulatorPage() {
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ open: boolean; x: number; y: number; pageId: string }>({ open: false, x: 0, y: 0, pageId: '' });
   const [selectMode, setSelectMode] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const pages = useManipulatorStore((s) => s.pages);
@@ -76,7 +78,7 @@ export default function ManipulatorPage() {
   const hasPages = pageCount > 0;
 
   useEffect(() => {
-    document.title = 'PDF Tools — ScanFastOnline';
+    document.title = 'PDF Tools â€” ScanFastOnline';
   }, []);
 
   // --- File handling ---
@@ -361,7 +363,7 @@ export default function ManipulatorPage() {
   // Exit select mode when selection is cleared externally
   useEffect(() => {
     if (selectMode && selectedIds.size === 0) {
-      // Keep select mode on — user may want to select more
+      // Keep select mode on â€” user may want to select more
     }
   }, [selectMode, selectedIds.size]);
 
@@ -775,3 +777,6 @@ export default function ManipulatorPage() {
     </>
   );
 }
+
+
+

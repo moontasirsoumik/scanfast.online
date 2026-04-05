@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+﻿import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import {
   Header,
@@ -136,7 +136,7 @@ export default function App() {
       </Header>
 
       <Content id="main-content" className={`app-content${showPersistentMobileTabbar ? ' has-mobile-tabbar' : ''}`}>
-        <Suspense fallback={<Loading withOverlay={false} />}>
+        <Suspense fallback={<div className="suspense-loader"><Loading withOverlay={false} /></div>}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/scanner" element={<ScannerPage />} />
@@ -171,3 +171,4 @@ export default function App() {
     </Theme>
   );
 }
+

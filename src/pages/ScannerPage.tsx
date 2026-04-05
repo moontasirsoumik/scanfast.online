@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Loading, Tag } from '@carbon/react';
-import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowLeft, ArrowRight, Download, ChevronLeft, ChevronRight } from '@carbon/icons-react';
+import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowLeft, ArrowRight, Download, ChevronLeft, ChevronRight , Close} from '@carbon/icons-react';
 import { useScannerStore, MAX_PAGES, type QuadCrop, type FilterType, type ScannedPage } from '@/stores/scanner';
 import { useManipulatorStore } from '@/stores/manipulator';
 import { addToast } from '@/stores/toast';
@@ -16,7 +16,7 @@ import ActionSheet from '@/components/shared/ActionSheet';
 import useIsMobile from '@/hooks/useIsMobile';
 import './ScannerPage.css';
 
-/** Scanner page — capture, crop, filter, and manage scanned pages */
+/** Scanner page â€” capture, crop, filter, and manage scanned pages */
 export default function ScannerPage() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -56,7 +56,7 @@ export default function ScannerPage() {
   const addPages = useScannerStore((s) => s.addPages);
 
   useEffect(() => {
-    document.title = 'Scanner — ScanFastOnline';
+    document.title = 'Scanner â€” ScanFastOnline';
   }, []);
 
   // --- Live preview processing ---
@@ -144,7 +144,7 @@ export default function ScannerPage() {
     e.target.value = '';
 
     if (fileList.length === 1) {
-      // Single file → go to preview for editing
+      // Single file â†’ go to preview for editing
       const scaled = await downscaleBlob(fileList[0]);
       captureImage(scaled);
       const orientation = await readExifOrientation(scaled);
@@ -155,7 +155,7 @@ export default function ScannerPage() {
       return;
     }
 
-    // Multiple files → batch import with default settings, go to gallery
+    // Multiple files â†’ batch import with default settings, go to gallery
     setProcessing(true);
     try {
       const newPages: ScannedPage[] = [];
@@ -399,7 +399,7 @@ export default function ScannerPage() {
       } else {
         lastTapRef.current = now;
       }
-      // Swipe tracking — skip during crop mode
+      // Swipe tracking â€” skip during crop mode
       if (!cropMode) {
         swipeRef.current = { startX: e.touches[0].clientX };
       }
@@ -418,7 +418,7 @@ export default function ScannerPage() {
   }, [cropMode]);
 
   const handlePreviewTouchEnd = useCallback((e: React.TouchEvent) => {
-    // Swipe detection for gallery navigation — skip in crop mode or after pinch
+    // Swipe detection for gallery navigation â€” skip in crop mode or after pinch
     if (!cropMode && swipeRef.current && !wasPinchRef.current && e.changedTouches.length === 1 && previewScale <= 1.0) {
       const endX = e.changedTouches[0].clientX;
       const delta = endX - swipeRef.current.startX;
@@ -693,9 +693,10 @@ export default function ScannerPage() {
 
       {isProcessing && (
         <div className="processing-overlay">
-          <Loading withOverlay={false} small description="Processing…" />
+          <Loading withOverlay={false} small description="Processingâ€¦" />
         </div>
       )}
     </>
   );
 }
+
