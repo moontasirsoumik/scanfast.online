@@ -136,7 +136,7 @@ export default function App() {
       </Header>
 
       <Content id="main-content" className={`app-content${showPersistentMobileTabbar ? ' has-mobile-tabbar' : ''}`}>
-        <Suspense fallback={<div className="suspense-loader"><Loading withOverlay={false} /></div>}>
+        <Suspense fallback={<div className="app-suspense-loader"><Loading withOverlay={false} /></div>}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/scanner" element={<ScannerPage />} />

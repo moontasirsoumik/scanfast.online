@@ -179,6 +179,8 @@
   padding: 3rem;
 }
 
+
+
 .preview-area .crop-overlay {
   position: absolute;
   inset: 0;
@@ -224,24 +226,7 @@
   100% { opacity: 0.85; transform: translateY(-50%) scale(1); }
 }
 
-/* --- Page Transition Animations --- */
-@keyframes sf-slide-left {
-  0% { opacity: 1; transform: scale(var(--_scale, 1)) translateX(0); }
-  100% { opacity: 0; transform: scale(var(--_scale, 1)) translateX(-30%); }
-}
-
-@keyframes sf-slide-right {
-  0% { opacity: 1; transform: scale(var(--_scale, 1)) translateX(0); }
-  100% { opacity: 0; transform: scale(var(--_scale, 1)) translateX(30%); }
-}
-
-.preview-area .preview-image.slide-left {
-  animation: sf-slide-left 250ms ease-out forwards;
-}
-
-.preview-area .preview-image.slide-right {
-  animation: sf-slide-right 250ms ease-out forwards;
-}
+/* Page slide transitions now use shared .sf-slide-* classes from app.css */
 
 .preview-bottom-panel {
   flex-shrink: 0;
@@ -289,7 +274,7 @@
   height: calc(100vh - 48px - var(--sf-mobile-nav-height, 0px));
   max-width: 1312px;
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0 0.875rem;
 }
 
 @media (min-width: 672px) {

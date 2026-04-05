@@ -7,7 +7,7 @@ import './HomePage.css';
 /** Landing page with hero and feature cards */
 export default function HomePage() {
   useEffect(() => {
-    document.title = 'ScanFastOnline — Free Document Scanner & PDF Manipulator';
+    document.title = 'ScanFastOnline — Free Document Scanner & PDF Tools';
   }, []);
 
   return (

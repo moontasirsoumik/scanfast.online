@@ -45,7 +45,7 @@ export default function RotationControls({ rotation, straighten, onRotate, onStr
         <span
           className="straighten-label"
           onDoubleClick={resetStraighten}
-          title="Double-click to reset"
+          aria-label="Straighten angle. Double-click to reset."
         >
           {straighten.toFixed(1)}°
         </span>

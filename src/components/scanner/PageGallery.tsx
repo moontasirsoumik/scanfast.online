@@ -1,11 +1,14 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import {
   DndContext,
   closestCenter,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
-  type DragEndEvent
+  type DragCancelEvent,
+  type DragEndEvent,
+  type DragStartEvent
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -30,11 +33,12 @@ interface PageGalleryProps {
 interface SortableThumbProps {
   page: ScannedPage;
   index: number;
+  suppressClick: () => boolean;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
-function SortableThumb({ page, index, onEdit, onDelete }: SortableThumbProps) {
+function SortableThumb({ page, index, suppressClick, onEdit, onDelete }: SortableThumbProps) {
   const {
     attributes,
     listeners,
@@ -47,7 +51,16 @@ function SortableThumb({ page, index, onEdit, onDelete }: SortableThumbProps) {
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 20 : 'auto',
   };
+
+  const handleClick = useCallback(() => {
+    if (suppressClick()) {
+      return;
+    }
+    onEdit(page.id);
+  }, [onEdit, page.id, suppressClick]);
 
   return (
     <div
@@ -58,11 +71,16 @@ function SortableThumb({ page, index, onEdit, onDelete }: SortableThumbProps) {
       className={`thumb-card${isDragging ? ' dragging' : ''}`}
       role="button"
       tabIndex={0}
-      onClick={() => onEdit(page.id)}
-      onKeyDown={(e) => { if (e.key === 'Enter') onEdit(page.id); }}
+      onClick={handleClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onEdit(page.id);
+        }
+      }}
       aria-label={`Page ${index + 1} — tap to edit`}
     >
-      <img src={page.thumbnail} alt={`Page ${index + 1}`} className="thumb-img" />
+      <img src={page.thumbnail} alt={`Page ${index + 1}`} className="thumb-img" draggable={false} />
       <span className="page-badge">{index + 1}</span>
       <button
         className="delete-btn"
@@ -78,21 +96,44 @@ function SortableThumb({ page, index, onEdit, onDelete }: SortableThumbProps) {
 /** Vertical grid page gallery with DnD reorder */
 export default function PageGallery({ pages, maxPages, onEdit, onDelete }: PageGalleryProps) {
   const reorderPages = useScannerStore((s) => s.reorderPages);
+  const dragStateRef = useRef({ suppressClickUntil: 0 });
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
   );
+
+  const suppressClick = useCallback(() => Date.now() < dragStateRef.current.suppressClickUntil, []);
+
+  const releaseDragState = useCallback(() => {
+    dragStateRef.current.suppressClickUntil = Date.now() + 250;
+  }, []);
+
+  const handleDragStart = useCallback((_event: DragStartEvent) => {
+    dragStateRef.current.suppressClickUntil = Number.POSITIVE_INFINITY;
+  }, []);
+
+  const handleDragCancel = useCallback((_event: DragCancelEvent) => {
+    releaseDragState();
+  }, [releaseDragState]);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) {
+      releaseDragState();
+      return;
+    }
 
     const oldIndex = pages.findIndex((p) => p.id === active.id);
     const newIndex = pages.findIndex((p) => p.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
+    if (oldIndex === -1 || newIndex === -1) {
+      releaseDragState();
+      return;
+    }
 
     reorderPages(arrayMove(pages, oldIndex, newIndex));
-  }, [pages, reorderPages]);
+    releaseDragState();
+  }, [pages, reorderPages, releaseDragState]);
 
   if (pages.length === 0) {
     return (
@@ -106,7 +147,13 @@ export default function PageGallery({ pages, maxPages, onEdit, onDelete }: PageG
 
   return (
     <div className="page-gallery">
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragCancel={handleDragCancel}
+        onDragEnd={handleDragEnd}
+      >
         <SortableContext items={pages.map((p) => p.id)} strategy={rectSortingStrategy}>
           <div className="thumbnail-grid" role="list">
             {pages.map((page, i) => (
@@ -114,6 +161,7 @@ export default function PageGallery({ pages, maxPages, onEdit, onDelete }: PageG
                 key={page.id}
                 page={page}
                 index={i}
+                suppressClick={suppressClick}
                 onEdit={onEdit}
                 onDelete={onDelete}
               />
