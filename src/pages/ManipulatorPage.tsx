@@ -98,7 +98,7 @@ export default function ManipulatorPage() {
   const previewOpen = previewPage !== null;
 
   useEffect(() => {
-    document.title = 'PDF Tools â€” ScanFastOnline';
+    document.title = 'PDF Tools — ScanFastOnline';
   }, []);
 
   useEffect(() => {
