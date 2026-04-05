@@ -61,7 +61,7 @@ export default function ScannerPage() {
   const addPages = useScannerStore((s) => s.addPages);
 
   useEffect(() => {
-    document.title = 'Scanner â€” ScanFastOnline';
+    document.title = 'Scanner — ScanFastOnline';
   }, []);
 
   // --- Live preview processing ---
