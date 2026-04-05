@@ -1,4 +1,4 @@
-.offline-badge {
+﻿.offline-badge {
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -205,3 +205,4 @@
     padding-bottom: 16px;
   }
 }
+
