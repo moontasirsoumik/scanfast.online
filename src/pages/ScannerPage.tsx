@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Loading, Tag } from '@carbon/react';
 import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowLeft, ArrowRight, Download, ChevronLeft, ChevronRight, Close } from '@carbon/icons-react';
@@ -61,7 +61,7 @@ export default function ScannerPage() {
   const addPages = useScannerStore((s) => s.addPages);
 
   useEffect(() => {
-    document.title = 'Scanner — ScanFastOnline';
+    document.title = 'Scanner â€” ScanFastOnline';
   }, []);
 
   // --- Live preview processing ---
@@ -166,7 +166,7 @@ export default function ScannerPage() {
     e.target.value = '';
 
     if (fileList.length === 1) {
-      // Single file → go to preview for editing
+      // Single file â†’ go to preview for editing
       const scaled = await downscaleBlob(fileList[0]);
       captureImage(scaled);
       const orientation = await readExifOrientation(scaled);
@@ -177,7 +177,7 @@ export default function ScannerPage() {
       return;
     }
 
-    // Multiple files → batch import with default settings, go to gallery
+    // Multiple files â†’ batch import with default settings, go to gallery
     setProcessing(true);
     try {
       const newPages: ScannedPage[] = [];
@@ -491,7 +491,7 @@ export default function ScannerPage() {
       } else {
         lastTapRef.current = now;
       }
-      // Swipe tracking — skip during crop mode
+      // Swipe tracking â€” skip during crop mode
       if (!cropMode) {
         swipeRef.current = { startX: e.touches[0].clientX };
       }
@@ -850,9 +850,10 @@ export default function ScannerPage() {
 
       {isProcessing && view !== 'preview' && (
         <div className="processing-overlay">
-          <Loading withOverlay={false} small description="Processing…" />
+          <Loading withOverlay={false} small description="Processingâ€¦" />
         </div>
       )}
     </>
   );
 }
+

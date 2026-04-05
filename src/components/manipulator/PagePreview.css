@@ -1,0 +1,154 @@
+﻿/* --- Full-screen Page Preview Overlay --- */
+.page-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Gradient Header --- */
+.page-preview-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: 80px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, transparent 100%);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0.75rem 1rem;
+  pointer-events: none;
+}
+
+.page-preview-header > * {
+  pointer-events: auto;
+}
+
+/* --- Page Counter --- */
+.page-preview-counter {
+  color: #fff;
+  font-size: 0.875rem;
+  font-family: var(--sf-font-body);
+  line-height: 36px;
+  user-select: none;
+}
+
+/* --- Close Button --- */
+.page-preview-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.page-preview-close:hover {
+  background: rgba(0, 0, 0, 0.7);
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+/* --- Body (image area) --- */
+.page-preview-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* --- Image --- */
+.page-preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+  transition: transform 0.1s ease;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.page-preview-img.zoomed {
+  transition: none;
+}
+
+/* --- Loading Spinner --- */
+.page-preview-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- Desktop Nav Arrows --- */
+.page-preview-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.page-preview-nav:hover {
+  background: rgba(0, 0, 0, 0.65);
+  border-color: rgba(255, 255, 255, 0.75);
+}
+
+.page-preview-nav--prev {
+  left: 12px;
+}
+
+.page-preview-nav--next {
+  right: 12px;
+}
+
+@media (max-width: 671px) {
+  .page-preview-nav {
+    display: none;
+  }
+}
+
+/* --- Slide Transition Animations --- */
+@keyframes page-preview-slide-left {
+  0% { opacity: 1; transform: scale(var(--_scale, 1)) translateX(0); }
+  100% { opacity: 0; transform: scale(var(--_scale, 1)) translateX(-30%); }
+}
+
+@keyframes page-preview-slide-right {
+  0% { opacity: 1; transform: scale(var(--_scale, 1)) translateX(0); }
+  100% { opacity: 0; transform: scale(var(--_scale, 1)) translateX(30%); }
+}
+
+.page-preview-img.slide-left {
+  animation: page-preview-slide-left 250ms ease-out forwards;
+}
+
+.page-preview-img.slide-right {
+  animation: page-preview-slide-right 250ms ease-out forwards;
+}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Grid, Column, Tag, Button, Loading } from '@carbon/react';
 import { DocumentAdd, Download, Scan, CheckboxCheckedFilled, Checkbox, Close, ChevronLeft, ChevronRight } from '@carbon/icons-react';
@@ -25,6 +25,7 @@ import DropZone from '@/components/manipulator/DropZone';
 import SplitDialog from '@/components/manipulator/SplitDialog';
 import CompressDialog from '@/components/manipulator/CompressDialog';
 import ContextMenu from '@/components/manipulator/ContextMenu';
+import PagePreview from '@/components/manipulator/PagePreview';
 import ActionSheet from '@/components/shared/ActionSheet';
 import useIsMobile from '@/hooks/useIsMobile';
 import './ManipulatorPage.css';
@@ -97,7 +98,7 @@ export default function ManipulatorPage() {
   const previewOpen = previewPage !== null;
 
   useEffect(() => {
-    document.title = 'PDF Tools — ScanFastOnline';
+    document.title = 'PDF Tools â€” ScanFastOnline';
   }, []);
 
   useEffect(() => {
@@ -482,7 +483,7 @@ export default function ManipulatorPage() {
   // Exit select mode when selection is cleared externally
   useEffect(() => {
     if (selectMode && selectedIds.size === 0) {
-      // Keep select mode on — user may want to select more
+      // Keep select mode on â€” user may want to select more
     }
   }, [selectMode, selectedIds.size]);
 
@@ -1053,3 +1054,6 @@ export default function ManipulatorPage() {
     </>
   );
 }
+
+
+
