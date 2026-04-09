@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { Button } from '@carbon/react';
+import { Maximize, Minimize, Checkmark, Close } from '@carbon/icons-react';
 import type { QuadCrop, Point } from '@/stores/scanner';
 import './CropEditor.css';
 
@@ -36,6 +37,7 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
   const [imgLoaded, setImgLoaded] = useState(false);
   const [loupeVisible, setLoupeVisible] = useState(false);
   const [loupeStyle, setLoupeStyle] = useState<React.CSSProperties>({});
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const imgRectRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
   const quadRef = useRef<QuadCrop>(initialCrop ? { ...initialCrop, tl: { ...initialCrop.tl }, tr: { ...initialCrop.tr }, br: { ...initialCrop.br }, bl: { ...initialCrop.bl } } : { ...DEFAULT_QUAD });
   const dragRef = useRef<{ corner: CornerKey; } | null>(null);
@@ -311,10 +313,93 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
     updateImgRect();
   };
 
+  const blurTarget = (e: React.MouseEvent) => {
+    (e.currentTarget as HTMLElement).blur();
+  };
+
+  const canNativeFullscreen = useCallback(() => {
+    const elem = containerRef.current as HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> };
+    return !!(elem?.requestFullscreen || elem?.webkitRequestFullscreen);
+  }, []);
+
+  const toggleFullscreen = async (e: React.MouseEvent) => {
+    blurTarget(e);
+    const elem = containerRef.current as HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> };
+    const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => Promise<void> };
+    if (!elem) return;
+
+    const isFS = !!(document.fullscreenElement || doc.webkitFullscreenElement);
+
+    // Try native fullscreen first
+    if (canNativeFullscreen()) {
+      try {
+        if (!isFS) {
+          if (elem.requestFullscreen) {
+            await elem.requestFullscreen();
+          } else if (elem.webkitRequestFullscreen) {
+            await elem.webkitRequestFullscreen();
+          }
+          setIsFullscreen(true);
+        } else {
+          if (document.exitFullscreen) {
+            await document.exitFullscreen();
+          } else if (doc.webkitExitFullscreen) {
+            await doc.webkitExitFullscreen();
+          }
+          setIsFullscreen(false);
+        }
+        return;
+      } catch {
+        // Native fullscreen failed (e.g. iPhone Safari) — fall through to CSS fallback
+      }
+    }
+
+    // CSS-based fullscreen fallback (iPhones)
+    setIsFullscreen((prev) => !prev);
+    setTimeout(updateImgRect, 100);
+  };
+
+  const exitFS = async () => {
+    const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => Promise<void> };
+    if (document.fullscreenElement || doc.webkitFullscreenElement) {
+      if (document.exitFullscreen) await document.exitFullscreen();
+      else if (doc.webkitExitFullscreen) await doc.webkitExitFullscreen();
+    }
+    setIsFullscreen(false);
+  };
+
+  const handleConfirm = async (e: React.MouseEvent) => {
+    blurTarget(e);
+    await exitFS();
+    onConfirm();
+  };
+
+  const handleCancel = async (e: React.MouseEvent) => {
+    blurTarget(e);
+    await exitFS();
+    onCancel();
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const doc = document as Document & { webkitFullscreenElement?: Element };
+      setIsFullscreen(!!(document.fullscreenElement || doc.webkitFullscreenElement));
+      // Redraw overlay when fullscreen changes
+      setTimeout(updateImgRect, 100);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, [updateImgRect]);
+
   return (
     <div className="crop-editor">
       <div
-        className="canvas-container"
+        className={`canvas-container${isFullscreen ? ' canvas-container--fullscreen' : ''}`}
         ref={containerRef}
       >
         <img
@@ -341,11 +426,45 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
             <canvas ref={loupeCanvasRef} width={60} height={60} />
           </div>
         )}
+        <div className="crop-fullscreen-controls">
+          <Button
+            className="sf-preview-close"
+            kind="ghost"
+            size="sm"
+            hasIconOnly
+            renderIcon={isFullscreen ? Minimize : Maximize}
+            iconDescription={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            tooltipPosition="left"
+            onClick={toggleFullscreen}
+          />
+        </div>
+        {isFullscreen && (
+          <div className="crop-fullscreen-actions">
+            <Button
+              kind="secondary"
+              size="sm"
+              renderIcon={Close}
+              iconDescription="Cancel"
+              hasIconOnly
+              tooltipPosition="top"
+              onClick={handleCancel}
+            />
+            <Button
+              kind="primary"
+              size="sm"
+              renderIcon={Checkmark}
+              iconDescription="Confirm"
+              hasIconOnly
+              tooltipPosition="top"
+              onClick={handleConfirm}
+            />
+          </div>
+        )}
       </div>
 
       <div className="crop-actions">
-        <Button kind="secondary" size="sm" onClick={onCancel}>Cancel</Button>
-        <Button kind="primary" size="sm" onClick={onConfirm}>Confirm</Button>
+        <Button kind="secondary" size="sm" onClick={handleCancel}>Cancel</Button>
+        <Button kind="primary" size="sm" onClick={handleConfirm}>Confirm</Button>
       </div>
     </div>
   );
