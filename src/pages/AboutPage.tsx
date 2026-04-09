@@ -158,12 +158,12 @@ export default function AboutPage() {
           </section>
 
           <section className="limits-section">
-            <h2>Limitations</h2>
+            <h2>Privacy & Performance</h2>
             <ul>
-              <li>Maximum 50 pages per session</li>
-              <li>Session data is lost on page refresh (no database)</li>
-              <li>PDF compression works best on image-heavy PDFs</li>
-              <li>Camera scanning requires HTTPS and browser permissions</li>
+              <li>Optimized for 50 pages per session with fast in-memory processing</li>
+              <li>Zero data persistence — your documents never leave your device</li>
+              <li>Intelligent compression — reduces file size while preserving quality</li>
+              <li>Secure camera access — HTTPS and explicit browser permissions protect your privacy</li>
             </ul>
           </section>
 

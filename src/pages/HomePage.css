@@ -60,14 +60,14 @@
 .word-fast {
   display: inline-block;
   opacity: 0;
-  animation: fast-in 280ms cubic-bezier(0, 0.55, 0.45, 1) 950ms both;
+  animation: fast-in 280ms cubic-bezier(0, 0.55, 0.45, 1) 400ms both;
 }
 
 /* ── Online: digital-flicker power-on ── */
 .word-online {
   display: inline-block;
   opacity: 0;
-  animation: online-flicker 700ms linear 1200ms both;
+  animation: online-flicker 700ms linear 600ms both;
 }
 
 /* ── Respect reduced-motion preference ── */

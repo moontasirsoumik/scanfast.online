@@ -140,7 +140,7 @@ These are hard rules — PRs that violate them will be rejected:
 - **No server-side processing.** Everything runs in the browser
 - **No ads, logins, analytics, or tracking**
 - **No external CDN/API dependencies at runtime**
-- **Max 20 pages per session**
+- **Max 50 pages per session**
 - **Max 20 undo/redo operations**
 
 ## Reporting Bugs

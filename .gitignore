@@ -14,6 +14,7 @@ node_modules
 .github/agents/
 .github/prompts/
 .github/instructions/
+.github/copilot-instructions.md
 memories/
 .vscode/
 
@@ -30,3 +31,7 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Bun (dev environment specific)
+bun.lock
+bunfig.toml
