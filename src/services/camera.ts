@@ -6,6 +6,43 @@ export async function checkCameraSupport(): Promise<boolean> {
 	return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 }
 
+/** Check if the device has more than one video input (front + back) */
+export async function hasMultipleCameras(): Promise<boolean> {
+	if (typeof window === 'undefined') return false;
+	try {
+		const devices = await navigator.mediaDevices.enumerateDevices();
+		return devices.filter((d) => d.kind === 'videoinput').length > 1;
+	} catch {
+		return false;
+	}
+}
+
+/** Apply torch (flashlight) mode to the active video track */
+export async function setTorch(stream: MediaStream, on: boolean): Promise<boolean> {
+	const track = stream.getVideoTracks()[0];
+	if (!track) return false;
+	try {
+		const caps = track.getCapabilities?.() as MediaTrackCapabilities & { torch?: boolean };
+		if (!caps?.torch) return false;
+		await track.applyConstraints({ advanced: [{ torch: on } as MediaTrackConstraintSet] });
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/** Check if the current stream supports torch */
+export function supportsTorch(stream: MediaStream): boolean {
+	const track = stream.getVideoTracks()[0];
+	if (!track) return false;
+	try {
+		const caps = track.getCapabilities?.() as MediaTrackCapabilities & { torch?: boolean };
+		return !!caps?.torch;
+	} catch {
+		return false;
+	}
+}
+
 /** Start camera stream with given facing mode */
 export async function startCamera(facing: 'user' | 'environment'): Promise<MediaStream> {
 	if (typeof window === 'undefined') {
