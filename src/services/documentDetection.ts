@@ -52,6 +52,12 @@ interface ScoredQuad {
 /** A line in the form ax + by + c = 0 */
 interface Line { a: number; b: number; c: number }
 
+interface GradientField {
+	gx: Float32Array;
+	gy: Float32Array;
+	mag: Float32Array;
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // IMAGE PROCESSING
 // ═══════════════════════════════════════════════════════════════════════
@@ -577,9 +583,10 @@ function cornerAngle(a: Pt, b: Pt, c: Pt): number {
 
 /**
  * Fit a convex hull to exactly 4 corners.
- * Tries progressive DP simplification, then falls back to sharpest-corner selection.
+ * Tries progressive DP simplification, then evaluates plausible 4-point subsets
+ * before falling back to a sharp-corner heuristic.
  */
-function fitToQuad(hull: Pt[]): [Pt, Pt, Pt, Pt] | null {
+function fitToQuad(hull: Pt[], frameW: number, frameH: number): [Pt, Pt, Pt, Pt] | null {
 	if (hull.length < 4) return null;
 	if (hull.length === 4) return orderQuadPoints(hull);
 
@@ -588,14 +595,19 @@ function fitToQuad(hull: Pt[]): [Pt, Pt, Pt, Pt] | null {
 	for (const factor of [0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.06, 0.08, 0.10]) {
 		const simplified = simplifyClosedPolygon(hull, perim * factor);
 		if (simplified.length === 4) return orderQuadPoints(simplified);
+		if (simplified.length >= 4 && simplified.length <= 12) {
+			const quad = selectBestQuadFromPolygon(simplified, frameW, frameH);
+			if (quad) return quad;
+		}
 		if (simplified.length < 4) break;
 	}
 
-	// Fallback: pick 4 sharpest corners from the hull
-	return findSharpestFourCorners(hull);
+	const reducedHull = reducePolygonForQuadSearch(hull);
+	return selectBestQuadFromPolygon(reducedHull, frameW, frameH)
+		?? findSharpestFourCorners(hull, frameW, frameH);
 }
 
-function findSharpestFourCorners(poly: Pt[]): [Pt, Pt, Pt, Pt] | null {
+function findSharpestFourCorners(poly: Pt[], frameW: number, frameH: number): [Pt, Pt, Pt, Pt] | null {
 	const n = poly.length;
 	if (n < 4) return null;
 
@@ -624,11 +636,63 @@ function findSharpestFourCorners(poly: Pt[]): [Pt, Pt, Pt, Pt] | null {
 
 	if (picks.length < 4) {
 		// Fall back to just taking top 4 regardless of separation
-		const top4 = ranked.slice(0, 4).map(r => poly[r.i]);
-		return orderQuadPoints(top4);
+		const top4 = ranked
+			.slice(0, Math.min(8, ranked.length))
+			.map(r => poly[r.i]);
+		return selectBestQuadFromPolygon(top4, frameW, frameH) ?? orderQuadPoints(top4.slice(0, 4));
 	}
 
-	return orderQuadPoints(picks.map(i => poly[i]));
+	return selectBestQuadFromPolygon(picks.map(i => poly[i]), frameW, frameH)
+		?? orderQuadPoints(picks.map(i => poly[i]));
+}
+
+function reducePolygonForQuadSearch(poly: Pt[], maxPts = 12): Pt[] {
+	if (poly.length <= maxPts) return poly;
+
+	const n = poly.length;
+	const ranked: { i: number; angle: number }[] = [];
+	for (let i = 0; i < n; i++) {
+		const prev = poly[(i - 1 + n) % n];
+		const curr = poly[i];
+		const next = poly[(i + 1) % n];
+		ranked.push({ i, angle: cornerAngle(prev, curr, next) });
+	}
+
+	ranked.sort((a, b) => a.angle - b.angle);
+	const keep = ranked
+		.slice(0, maxPts)
+		.map(entry => entry.i)
+		.sort((a, b) => a - b);
+	return keep.map(i => poly[i]);
+}
+
+function selectBestQuadFromPolygon(
+	poly: Pt[],
+	frameW: number,
+	frameH: number
+): [Pt, Pt, Pt, Pt] | null {
+	if (poly.length < 4) return null;
+
+	let bestQuad: [Pt, Pt, Pt, Pt] | null = null;
+	let bestScore = 0;
+
+	for (let i = 0; i < poly.length - 3; i++) {
+		for (let j = i + 1; j < poly.length - 2; j++) {
+			for (let k = j + 1; k < poly.length - 1; k++) {
+				for (let l = k + 1; l < poly.length; l++) {
+					const quad = orderQuadPoints([poly[i], poly[j], poly[k], poly[l]]);
+					if (!isConvex(quad)) continue;
+					const score = scoreQuadGeometry(quad, frameW, frameH);
+					if (score > bestScore) {
+						bestQuad = quad;
+						bestScore = score;
+					}
+				}
+			}
+		}
+	}
+
+	return bestQuad;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -659,17 +723,41 @@ function isConvex(pts: Pt[]): boolean {
 
 /** Order 4 points: top-left, top-right, bottom-right, bottom-left */
 function orderQuadPoints(pts: Pt[]): [Pt, Pt, Pt, Pt] {
-	const sorted = pts.slice().sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
-	const top = sorted.slice(0, 2).sort((a, b) => a.x - b.x);
-	const bottom = sorted.slice(2, 4).sort((a, b) => a.x - b.x);
-	return [top[0], top[1], bottom[1], bottom[0]];
+	const cx = pts.reduce((sum, p) => sum + p.x, 0) / pts.length;
+	const cy = pts.reduce((sum, p) => sum + p.y, 0) / pts.length;
+	const sorted = pts
+		.slice()
+		.sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+
+	let start = 0;
+	let best = Infinity;
+	for (let i = 0; i < sorted.length; i++) {
+		const score = sorted[i].x + sorted[i].y;
+		if (score < best) {
+			best = score;
+			start = i;
+		}
+	}
+
+	let ordered = [
+		sorted[start],
+		sorted[(start + 1) % sorted.length],
+		sorted[(start + 2) % sorted.length],
+		sorted[(start + 3) % sorted.length],
+	] as [Pt, Pt, Pt, Pt];
+
+	if (crossProduct(ordered[0], ordered[1], ordered[2]) < 0) {
+		ordered = [ordered[0], ordered[3], ordered[2], ordered[1]];
+	}
+
+	return ordered;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 // QUAD SCORING
 // ═══════════════════════════════════════════════════════════════════════
 
-function scoreQuad(corners: [Pt, Pt, Pt, Pt], frameW: number, frameH: number): number {
+function scoreQuadGeometry(corners: [Pt, Pt, Pt, Pt], frameW: number, frameH: number): number {
 	const area = polygonArea(corners);
 	const frameArea = frameW * frameH;
 	const areaRatio = area / frameArea;
@@ -692,7 +780,7 @@ function scoreQuad(corners: [Pt, Pt, Pt, Pt], frameW: number, frameH: number): n
 	const areaScore = Math.min(areaRatio * 1.5, 1);
 
 	// Convexity
-	const convexBonus = isConvex(corners) ? 1 : 0.4;
+	const convexScore = isConvex(corners) ? 1 : 0.4;
 
 	// Aspect ratio: penalize extreme ratios (>4:1 unlikely for documents)
 	const edgeLens: number[] = [];
@@ -705,7 +793,118 @@ function scoreQuad(corners: [Pt, Pt, Pt, Pt], frameW: number, frameH: number): n
 	const aspect = Math.max(avgW, avgH) / (Math.min(avgW, avgH) || 1);
 	const aspectScore = aspect <= 3 ? 1 : Math.max(0, 1 - (aspect - 3) * 0.25);
 
-	return angleScore * 0.35 + areaScore * 0.25 + convexBonus * 0.2 + aspectScore * 0.2;
+	const oppositeEdgeScore = (
+		scoreLengthSimilarity(edgeLens[0], edgeLens[2]) +
+		scoreLengthSimilarity(edgeLens[1], edgeLens[3])
+	) / 2;
+
+	return angleScore * 0.32
+		+ areaScore * 0.2
+		+ convexScore * 0.18
+		+ aspectScore * 0.15
+		+ oppositeEdgeScore * 0.15;
+}
+
+function scoreLengthSimilarity(a: number, b: number): number {
+	const longer = Math.max(a, b);
+	const shorter = Math.min(a, b);
+	if (longer < 1e-6) return 0;
+	const ratio = shorter / longer;
+	return ratio >= 0.35 ? 1 : ratio / 0.35;
+}
+
+function sampleBestEdgeResponse(
+	cx: number,
+	cy: number,
+	nx: number,
+	ny: number,
+	field: GradientField,
+	w: number,
+	h: number,
+	corridor: number
+): { mag: number; align: number; score: number; x: number; y: number } {
+	let bestMag = 0;
+	let bestAlign = 0;
+	let bestScore = 0;
+	let bestX = cx;
+	let bestY = cy;
+
+	for (let d = -corridor; d <= corridor; d += 0.5) {
+		const sx = cx + nx * d;
+		const sy = cy + ny * d;
+		const ix = Math.round(sx);
+		const iy = Math.round(sy);
+		if (ix < 1 || ix >= w - 1 || iy < 1 || iy >= h - 1) continue;
+
+		const idx = iy * w + ix;
+		const mag = field.mag[idx];
+		if (mag < 1) continue;
+
+		const align = Math.abs((field.gx[idx] * nx + field.gy[idx] * ny) / mag);
+		const distancePenalty = 1 - 0.35 * (Math.abs(d) / Math.max(1, corridor));
+		const score = mag * (0.25 + 0.75 * align) * distancePenalty;
+		if (score > bestScore) {
+			bestScore = score;
+			bestMag = mag;
+			bestAlign = align;
+			bestX = sx;
+			bestY = sy;
+		}
+	}
+
+	return { mag: bestMag, align: bestAlign, score: bestScore, x: bestX, y: bestY };
+}
+
+function scoreQuadEdgeSupport(
+	corners: [Pt, Pt, Pt, Pt],
+	field: GradientField,
+	w: number,
+	h: number
+): number {
+	const corridor = Math.max(3, Math.min(w, h) * 0.02);
+	let supportHits = 0;
+	let strength = 0;
+	let total = 0;
+
+	for (let i = 0; i < 4; i++) {
+		const a = corners[i];
+		const b = corners[(i + 1) % 4];
+		const dx = b.x - a.x;
+		const dy = b.y - a.y;
+		const len = Math.hypot(dx, dy);
+		if (len < 4) continue;
+
+		const tx = dx / len;
+		const ty = dy / len;
+		const nx = -ty;
+		const ny = tx;
+		const samples = Math.min(48, Math.max(12, Math.round(len / 3)));
+
+		for (let s = 0; s < samples; s++) {
+			const t = (s + 0.5) / samples;
+			const cx = a.x + dx * t;
+			const cy = a.y + dy * t;
+			const response = sampleBestEdgeResponse(cx, cy, nx, ny, field, w, h, corridor);
+			total++;
+			strength += Math.min(1, response.score / 110);
+			if (response.mag > 18 && response.align > 0.45) supportHits++;
+		}
+	}
+
+	if (total === 0) return 0;
+	return (supportHits / total) * 0.65 + (strength / total) * 0.35;
+}
+
+function scoreQuad(
+	corners: [Pt, Pt, Pt, Pt],
+	frameW: number,
+	frameH: number,
+	field: GradientField | null
+): number {
+	const geometryScore = scoreQuadGeometry(corners, frameW, frameH);
+	if (!field || geometryScore === 0) return geometryScore;
+	const edgeScore = scoreQuadEdgeSupport(corners, field, frameW, frameH);
+	return geometryScore * 0.72 + edgeScore * 0.28;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -717,24 +916,29 @@ function scoreQuad(corners: [Pt, Pt, Pt, Pt], frameW: number, frameH: number): n
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Compute Sobel gradient magnitude at each pixel.
- * Reusable across refinement calls for the same frame.
+ * Compute Sobel gradient field at each pixel.
+ * Reusable across refinement calls and edge-aware scoring for the same frame.
  */
-function sobelMagnitude(gray: Uint8Array, w: number, h: number): Float32Array {
+function sobelField(gray: Uint8Array, w: number, h: number): GradientField {
+	const gx = new Float32Array(w * h);
+	const gy = new Float32Array(w * h);
 	const mag = new Float32Array(w * h);
 	for (let y = 1; y < h - 1; y++) {
 		for (let x = 1; x < w - 1; x++) {
-			const gx =
+			const gradX =
 				-gray[(y - 1) * w + x - 1] + gray[(y - 1) * w + x + 1]
 				- 2 * gray[y * w + x - 1] + 2 * gray[y * w + x + 1]
 				- gray[(y + 1) * w + x - 1] + gray[(y + 1) * w + x + 1];
-			const gy =
+			const gradY =
 				-gray[(y - 1) * w + x - 1] - 2 * gray[(y - 1) * w + x] - gray[(y - 1) * w + x + 1]
 				+ gray[(y + 1) * w + x - 1] + 2 * gray[(y + 1) * w + x] + gray[(y + 1) * w + x + 1];
-			mag[y * w + x] = Math.sqrt(gx * gx + gy * gy);
+			const i = y * w + x;
+			gx[i] = gradX;
+			gy[i] = gradY;
+			mag[i] = Math.sqrt(gradX * gradX + gradY * gradY);
 		}
 	}
-	return mag;
+	return { gx, gy, mag };
 }
 
 /**
@@ -744,7 +948,7 @@ function sobelMagnitude(gray: Uint8Array, w: number, h: number): Float32Array {
  */
 function fitEdgeLine(
 	p1: Pt, p2: Pt,
-	gradMag: Float32Array,
+	field: GradientField,
 	w: number, h: number,
 	corridor: number
 ): Line | null {
@@ -765,71 +969,38 @@ function fitEdgeLine(
 		const cx = p1.x + dx * t;
 		const cy = p1.y + dy * t;
 
-		// Search along perpendicular for peak gradient
-		let bestMag = 0;
-		let bestX = cx, bestY = cy;
-
-		for (let d = -corridor; d <= corridor; d += 0.5) {
-			const sx = cx + nx * d;
-			const sy = cy + ny * d;
-			const ix = Math.round(sx);
-			const iy = Math.round(sy);
-			if (ix < 1 || ix >= w - 1 || iy < 1 || iy >= h - 1) continue;
-			const mag = gradMag[iy * w + ix];
-			if (mag > bestMag) {
-				bestMag = mag;
-				bestX = sx;
-				bestY = sy;
-			}
-		}
-
-		if (bestMag > 10) { // minimum gradient threshold (low for faint edges)
-			edgePts.push({ x: bestX, y: bestY });
+		const response = sampleBestEdgeResponse(cx, cy, nx, ny, field, w, h, corridor);
+		if (response.mag > 12 && response.align > 0.35) {
+			edgePts.push({ x: response.x, y: response.y });
 		}
 	}
 
 	if (edgePts.length < 3) return null;
 
-	// RANSAC-lite: least-squares line fit with outlier rejection
-	return ransacLineFit(edgePts);
+	return robustLineFit(edgePts);
 }
 
 /**
- * Simple RANSAC line fit: try random pairs, pick line with most inliers,
- * then refit on inliers only.
+ * Deterministic robust line fit: iteratively refit after trimming outliers.
+ * This avoids frame-to-frame jitter from random sampling.
  */
-function ransacLineFit(pts: Pt[]): Line | null {
-	const n = pts.length;
-	if (n < 3) return null;
+function robustLineFit(pts: Pt[]): Line | null {
+	if (pts.length < 3) return null;
 
-	const INLIER_THRESHOLD = 3; // pixels
-	const ITERS = Math.min(50, n * (n - 1) / 2);
-	let bestInliers: Pt[] = [];
+	let inliers = pts.slice();
+	let line = leastSquaresLine(inliers);
 
-	for (let iter = 0; iter < ITERS; iter++) {
-		// Pick two random points
-		const i = Math.floor(Math.random() * n);
-		let j = Math.floor(Math.random() * (n - 1));
-		if (j >= i) j++;
-
-		const line = lineFromTwoPoints(pts[i], pts[j]);
-		if (!line) continue;
-
-		const inliers = pts.filter(p => distToLine(p, line) <= INLIER_THRESHOLD);
-		if (inliers.length > bestInliers.length) {
-			bestInliers = inliers;
-		}
+	for (let iter = 0; iter < 3; iter++) {
+		const distances = inliers.map(p => distToLine(p, line)).sort((a, b) => a - b);
+		const median = distances[Math.floor(distances.length / 2)] ?? 0;
+		const threshold = Math.max(1.5, Math.min(4.5, median * 2.5 + 0.5));
+		const next = inliers.filter(p => distToLine(p, line) <= threshold);
+		if (next.length < 3 || next.length === inliers.length) break;
+		inliers = next;
+		line = leastSquaresLine(inliers);
 	}
 
-	if (bestInliers.length < 3) return leastSquaresLine(pts);
-	return leastSquaresLine(bestInliers);
-}
-
-function lineFromTwoPoints(a: Pt, b: Pt): Line | null {
-	const dx = b.x - a.x, dy = b.y - a.y;
-	const len = Math.hypot(dx, dy);
-	if (len < 1e-6) return null;
-	return { a: -dy / len, b: dx / len, c: (dy * a.x - dx * a.y) / len };
+	return leastSquaresLine(inliers);
 }
 
 function distToLine(p: Pt, l: Line): number {
@@ -877,7 +1048,7 @@ function intersectLines(l1: Line, l2: Line): Pt | null {
  */
 function refineQuadCorners(
 	quad: [Pt, Pt, Pt, Pt],
-	gradMag: Float32Array,
+	field: GradientField,
 	w: number, h: number
 ): [Pt, Pt, Pt, Pt] {
 	// Sides: tl→tr, tr→br, br→bl, bl→tl
@@ -890,17 +1061,25 @@ function refineQuadCorners(
 
 	const corridor = Math.max(6, Math.min(w, h) * 0.04);
 	const lines: (Line | null)[] = sides.map(([a, b]) =>
-		fitEdgeLine(a, b, gradMag, w, h, corridor)
+		fitEdgeLine(a, b, field, w, h, corridor)
 	);
 
 	// If all 4 lines fitted, intersect them for precise corners
 	const refined: Pt[] = [];
+	const maxShift = Math.max(10, Math.min(w, h) * 0.12);
 	for (let i = 0; i < 4; i++) {
 		const lineA = lines[(i + 3) % 4]; // side ending at this corner
 		const lineB = lines[i];            // side starting at this corner
 		if (lineA && lineB) {
 			const pt = intersectLines(lineA, lineB);
-			if (pt && pt.x >= -10 && pt.x <= w + 10 && pt.y >= -10 && pt.y <= h + 10) {
+			if (
+				pt &&
+				pt.x >= -10 &&
+				pt.x <= w + 10 &&
+				pt.y >= -10 &&
+				pt.y <= h + 10 &&
+				Math.hypot(pt.x - quad[i].x, pt.y - quad[i].y) <= maxShift
+			) {
 				refined.push(pt);
 				continue;
 			}
@@ -915,7 +1094,7 @@ function refineQuadCorners(
 		p.y = Math.max(0, Math.min(h - 1, p.y));
 	}
 
-	return refined as [Pt, Pt, Pt, Pt];
+	return orderQuadPoints(refined) as [Pt, Pt, Pt, Pt];
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -928,7 +1107,7 @@ function refineQuadCorners(
  */
 function detectQuadFromBinaryMap(
 	binary: Uint8Array, w: number, h: number, dilateIter: number,
-	gradMag: Float32Array | null
+	gradientField: GradientField | null
 ): ScoredQuad | null {
 	const dilated = dilate(binary, w, h, dilateIter);
 
@@ -957,15 +1136,22 @@ function detectQuadFromBinaryMap(
 	const hull = convexHull(boundary);
 	if (hull.length < 4) return null;
 
-	let quad = fitToQuad(hull);
+	let quad = fitToQuad(hull, w, h);
 	if (!quad) return null;
 
-	// Refine corners using gradient edge fitting
-	if (gradMag) {
-		quad = refineQuadCorners(quad, gradMag, w, h);
+	let score = scoreQuad(quad, w, h, gradientField);
+
+	// Refine corners using gradient edge fitting, but only keep the refinement
+	// when it actually improves the candidate.
+	if (gradientField) {
+		const refined = refineQuadCorners(quad, gradientField, w, h);
+		const refinedScore = scoreQuad(refined, w, h, gradientField);
+		if (refinedScore >= score * 0.98) {
+			quad = refined;
+			score = refinedScore;
+		}
 	}
 
-	const score = scoreQuad(quad, w, h);
 	if (score < MIN_SCORE) return null;
 
 	return { corners: quad, score };
@@ -1020,8 +1206,8 @@ function detectAtResolution(
 		gaussianBlur(channels[2], w, h),
 	];
 
-	// Pre-compute gradient magnitude for corner refinement (use CLAHE-enhanced)
-	const gradMag = sobelMagnitude(enhancedBlurred, w, h);
+	// Pre-compute gradient field for corner refinement and edge-aware scoring.
+	const gradientField = sobelField(enhancedBlurred, w, h);
 
 	const HIGH_CONFIDENCE = 0.6;
 	const candidates: ScoredQuad[] = [];
@@ -1039,7 +1225,7 @@ function detectAtResolution(
 	];
 	for (const [lo, hi] of cannyPasses) {
 		const edges = cannyEdges(blurred, w, h, lo, hi);
-		const quad = detectQuadFromBinaryMap(edges, w, h, 3, gradMag);
+		const quad = detectQuadFromBinaryMap(edges, w, h, 3, gradientField);
 		if (quad) candidates.push(quad);
 	}
 	{ const r = maybeReturn(); if (r) return r; }
@@ -1050,7 +1236,7 @@ function detectAtResolution(
 	];
 	for (const [lo, hi] of clahePasses) {
 		const edges = cannyEdges(enhancedBlurred, w, h, lo, hi);
-		const quad = detectQuadFromBinaryMap(edges, w, h, 3, gradMag);
+		const quad = detectQuadFromBinaryMap(edges, w, h, 3, gradientField);
 		if (quad) candidates.push(quad);
 	}
 	{ const r = maybeReturn(); if (r) return r; }
@@ -1059,7 +1245,7 @@ function detectAtResolution(
 	const colorMag = colorEdgeMagnitude(blurredChannels, w, h);
 	for (const thresh of [30, 50, 20, 70]) {
 		const binary = thresholdMagnitude(colorMag, w, h, thresh);
-		const quad = detectQuadFromBinaryMap(binary, w, h, 3, gradMag);
+		const quad = detectQuadFromBinaryMap(binary, w, h, 3, gradientField);
 		if (quad) candidates.push(quad);
 	}
 	{ const r = maybeReturn(); if (r) return r; }
@@ -1070,12 +1256,12 @@ function detectAtResolution(
 	];
 	for (const [block, c] of adaptivePasses) {
 		const thresh = adaptiveThreshold(blurred, w, h, block, c);
-		const quad = detectQuadFromBinaryMap(thresh, w, h, 2, gradMag);
+		const quad = detectQuadFromBinaryMap(thresh, w, h, 2, gradientField);
 		if (quad) candidates.push(quad);
 	}
 	for (const [block, c] of [[21, 5], [11, 3], [31, 8]] as [number, number][]) {
 		const thresh = adaptiveThreshold(enhancedBlurred, w, h, block, c);
-		const quad = detectQuadFromBinaryMap(thresh, w, h, 2, gradMag);
+		const quad = detectQuadFromBinaryMap(thresh, w, h, 2, gradientField);
 		if (quad) candidates.push(quad);
 	}
 
