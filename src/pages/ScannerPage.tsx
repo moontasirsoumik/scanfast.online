@@ -6,6 +6,7 @@ import { useScannerStore, MAX_PAGES, type QuadCrop, type FilterType, type Scanne
 import { useManipulatorStore } from '@/stores/manipulator';
 import { addToast } from '@/stores/toast';
 import { processPage, readExifOrientation, exifOrientationToDegrees, downscaleBlob } from '@/services/filters';
+import { detectDocumentFromBlob } from '@/services/documentDetection';
 import { downloadBlob, loadFiles } from '@/services/pdf';
 import CameraView from '@/components/scanner/CameraView';
 import CropEditor from '@/components/scanner/CropEditor';
@@ -119,7 +120,7 @@ export default function ScannerPage() {
   }, [currentCrop, currentImage, editingPageId]);
 
   // --- Handlers ---
-  const handleCapture = useCallback(async (blob: Blob) => {
+  const handleCapture = useCallback(async (blob: Blob, detectedQuad?: QuadCrop | null) => {
     // Batch mode: save directly with default settings, stay on camera
     const state = useScannerStore.getState();
     if (state.pages.length >= MAX_PAGES) {
@@ -130,7 +131,14 @@ export default function ScannerPage() {
       const scaled = await downscaleBlob(blob);
       const orientation = await readExifOrientation(scaled);
       const degrees = exifOrientationToDegrees(orientation);
-      const result = await processPage(scaled, 'original', degrees, null, 0);
+
+      // Use live-detected quad, or run high-quality detection on the captured image
+      let cropQuad = detectedQuad ?? null;
+      if (!cropQuad) {
+        cropQuad = await detectDocumentFromBlob(scaled);
+      }
+
+      const result = await processPage(scaled, 'original', degrees, cropQuad, 0);
       const page: ScannedPage = {
         id: crypto.randomUUID(),
         originalBlob: scaled,
@@ -139,7 +147,7 @@ export default function ScannerPage() {
         filter: 'original',
         rotation: degrees,
         straighten: 0,
-        cropRect: null
+        cropRect: cropQuad
       };
       const added = useScannerStore.getState().addPage(page);
       if (added) {
@@ -165,13 +173,18 @@ export default function ScannerPage() {
     e.target.value = '';
 
     if (fileList.length === 1) {
-      // Single file â†’ go to preview for editing
+      // Single file → go to preview for editing, detect document edges for initial crop
       const scaled = await downscaleBlob(fileList[0]);
       captureImage(scaled);
       const orientation = await readExifOrientation(scaled);
       const degrees = exifOrientationToDegrees(orientation);
       if (degrees !== 0) {
         setRotation(degrees);
+      }
+      // Run document detection for initial crop suggestion
+      const detectedQuad = await detectDocumentFromBlob(scaled);
+      if (detectedQuad) {
+        useScannerStore.getState().setCrop(detectedQuad);
       }
       return;
     }
@@ -188,7 +201,8 @@ export default function ScannerPage() {
         const scaled = await downscaleBlob(file);
         const orientation = await readExifOrientation(scaled);
         const degrees = exifOrientationToDegrees(orientation);
-        const result = await processPage(scaled, 'original', degrees, null, 0);
+        const cropQuad = await detectDocumentFromBlob(scaled);
+        const result = await processPage(scaled, 'original', degrees, cropQuad, 0);
         newPages.push({
           id: crypto.randomUUID(),
           originalBlob: scaled,
@@ -197,7 +211,7 @@ export default function ScannerPage() {
           filter: 'original',
           rotation: degrees,
           straighten: 0,
-          cropRect: null
+          cropRect: cropQuad
         });
       }
 
