@@ -45,6 +45,7 @@
   .toolbar-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
     scrollbar-width: none;
     flex-wrap: nowrap;
     gap: 2px;

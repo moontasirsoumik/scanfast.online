@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { Button } from '@carbon/react';
-import { Maximize, Minimize, Checkmark, Close } from '@carbon/icons-react';
+import { Maximize, Minimize } from '@carbon/icons-react';
 import type { QuadCrop, Point } from '@/stores/scanner';
 import './CropEditor.css';
 
@@ -15,6 +15,7 @@ interface CropEditorProps {
 const CORNER_RADIUS = 10;
 const HIT_RADIUS = 24;
 const DEFAULT_QUAD: QuadCrop = { tl: { x: 0, y: 0 }, tr: { x: 1, y: 0 }, br: { x: 1, y: 1 }, bl: { x: 0, y: 1 } };
+const FOCUS_MODE_CLASS = 'sf-crop-focus-mode';
 type CornerKey = 'tl' | 'tr' | 'br' | 'bl';
 
 function clamp(v: number, min: number, max: number): number {
@@ -37,7 +38,7 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
   const [imgLoaded, setImgLoaded] = useState(false);
   const [loupeVisible, setLoupeVisible] = useState(false);
   const [loupeStyle, setLoupeStyle] = useState<React.CSSProperties>({});
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false);
   const imgRectRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
   const quadRef = useRef<QuadCrop>(initialCrop ? { ...initialCrop, tl: { ...initialCrop.tl }, tr: { ...initialCrop.tr }, br: { ...initialCrop.br }, bl: { ...initialCrop.bl } } : { ...DEFAULT_QUAD });
   const dragRef = useRef<{ corner: CornerKey; } | null>(null);
@@ -69,12 +70,16 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
     const ih = img.naturalHeight;
     if (!iw || !ih) return;
 
-    const s = Math.min(cw / iw, ch / ih);
+    // Inset so corner handles (radius 10px) are never clipped at edges
+    const PAD = CORNER_RADIUS + 4; // 14px — must match CSS .crop-image inset
+    const availW = Math.max(cw - PAD * 2, 1);
+    const availH = Math.max(ch - PAD * 2, 1);
+    const s = Math.min(availW / iw, availH / ih);
     const w = iw * s;
     const h = ih * s;
-    imgRectRef.current = { x: (cw - w) / 2, y: (ch - h) / 2, w, h };
+    imgRectRef.current = { x: PAD + (availW - w) / 2, y: PAD + (availH - h) / 2, w, h };
     drawOverlay();
-  }, [imgLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [imgLoaded, isFocusMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Convert normalized quad point to canvas pixel coords */
   const toCanvas = useCallback((p: Point): { cx: number; cy: number } => {
@@ -317,91 +322,53 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
     (e.currentTarget as HTMLElement).blur();
   };
 
-  const canNativeFullscreen = useCallback(() => {
-    const elem = containerRef.current as HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> };
-    return !!(elem?.requestFullscreen || elem?.webkitRequestFullscreen);
-  }, []);
-
-  const toggleFullscreen = async (e: React.MouseEvent) => {
+  const toggleFocusMode = (e: React.MouseEvent) => {
     blurTarget(e);
-    const elem = containerRef.current as HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> };
-    const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => Promise<void> };
-    if (!elem) return;
-
-    const isFS = !!(document.fullscreenElement || doc.webkitFullscreenElement);
-
-    // Try native fullscreen first
-    if (canNativeFullscreen()) {
-      try {
-        if (!isFS) {
-          if (elem.requestFullscreen) {
-            await elem.requestFullscreen();
-          } else if (elem.webkitRequestFullscreen) {
-            await elem.webkitRequestFullscreen();
-          }
-          setIsFullscreen(true);
-        } else {
-          if (document.exitFullscreen) {
-            await document.exitFullscreen();
-          } else if (doc.webkitExitFullscreen) {
-            await doc.webkitExitFullscreen();
-          }
-          setIsFullscreen(false);
-        }
-        return;
-      } catch {
-        // Native fullscreen failed (e.g. iPhone Safari) — fall through to CSS fallback
-      }
-    }
-
-    // CSS-based fullscreen fallback (iPhones)
-    setIsFullscreen((prev) => !prev);
-    setTimeout(updateImgRect, 100);
+    setIsFocusMode((prev) => !prev);
   };
 
-  const exitFS = async () => {
-    const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => Promise<void> };
-    if (document.fullscreenElement || doc.webkitFullscreenElement) {
-      if (document.exitFullscreen) await document.exitFullscreen();
-      else if (doc.webkitExitFullscreen) await doc.webkitExitFullscreen();
-    }
-    setIsFullscreen(false);
-  };
-
-  const handleConfirm = async (e: React.MouseEvent) => {
+  const handleConfirm = (e: React.MouseEvent) => {
     blurTarget(e);
-    await exitFS();
+    setIsFocusMode(false);
     onConfirm();
   };
 
-  const handleCancel = async (e: React.MouseEvent) => {
+  const handleCancel = (e: React.MouseEvent) => {
     blurTarget(e);
-    await exitFS();
+    setIsFocusMode(false);
     onCancel();
   };
 
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      const doc = document as Document & { webkitFullscreenElement?: Element };
-      setIsFullscreen(!!(document.fullscreenElement || doc.webkitFullscreenElement));
-      // Redraw overlay when fullscreen changes
-      setTimeout(updateImgRect, 100);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.documentElement.classList.toggle(FOCUS_MODE_CLASS, isFocusMode);
+    document.body.classList.toggle(FOCUS_MODE_CLASS, isFocusMode);
+    const inertTargets = Array.from(document.querySelectorAll('.cds--header, .preview-bottom-panel, .sf-preview-header, .sf-preview-nav-button'));
+    for (const element of inertTargets) {
+      if (isFocusMode) {
+        element.setAttribute('inert', '');
+      } else {
+        element.removeAttribute('inert');
+      }
+    }
+    const timeoutId = window.setTimeout(() => updateImgRect(), 180);
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      window.clearTimeout(timeoutId);
     };
-  }, [updateImgRect]);
+  }, [isFocusMode, updateImgRect]);
+
+  useEffect(() => {
+    return () => {
+      document.documentElement.classList.remove(FOCUS_MODE_CLASS);
+      document.body.classList.remove(FOCUS_MODE_CLASS);
+      for (const element of Array.from(document.querySelectorAll('.cds--header, .preview-bottom-panel, .sf-preview-header, .sf-preview-nav-button'))) {
+        element.removeAttribute('inert');
+      }
+    };
+  }, []);
 
   return (
-    <div className="crop-editor">
-      <div
-        className={`canvas-container${isFullscreen ? ' canvas-container--fullscreen' : ''}`}
-        ref={containerRef}
-      >
+    <div className={`crop-editor${isFocusMode ? ' crop-editor--focus-mode' : ''}`}>
+      <div className="canvas-container" ref={containerRef}>
         <img
           src={imageUrl}
           alt="Crop target"
@@ -426,40 +393,18 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
             <canvas ref={loupeCanvasRef} width={60} height={60} />
           </div>
         )}
-        <div className="crop-fullscreen-controls">
+        <div className="crop-focus-controls">
           <Button
-            className="sf-preview-close"
+            className="crop-focus-toggle"
             kind="ghost"
             size="sm"
             hasIconOnly
-            renderIcon={isFullscreen ? Minimize : Maximize}
-            iconDescription={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            renderIcon={isFocusMode ? Minimize : Maximize}
+            iconDescription={isFocusMode ? 'Restore crop view' : 'Maximize crop view'}
             tooltipPosition="left"
-            onClick={toggleFullscreen}
+            onClick={toggleFocusMode}
           />
         </div>
-        {isFullscreen && (
-          <div className="crop-fullscreen-actions">
-            <Button
-              kind="secondary"
-              size="sm"
-              renderIcon={Close}
-              iconDescription="Cancel"
-              hasIconOnly
-              tooltipPosition="top"
-              onClick={handleCancel}
-            />
-            <Button
-              kind="primary"
-              size="sm"
-              renderIcon={Checkmark}
-              iconDescription="Confirm"
-              hasIconOnly
-              tooltipPosition="top"
-              onClick={handleConfirm}
-            />
-          </div>
-        )}
       </div>
 
       <div className="crop-actions">
