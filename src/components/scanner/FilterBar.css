@@ -8,6 +8,7 @@
   align-items: center;
   background: var(--cds-layer-01, #0d0d0d);
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
   scrollbar-width: none;
 }
 

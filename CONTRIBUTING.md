@@ -4,8 +4,8 @@ Thanks for your interest in contributing! ScanFastOnline is a client-side docume
 
 ## Prerequisites
 
-- **Node.js** 20+
-- **npm** (comes with Node)
+- **Bun** 1.0+ (recommended) — [install from bun.sh](https://bun.sh)
+  - Or **Node.js** 20+ with npm (also supported)
 
 ## Contribution Workflow
 
@@ -23,7 +23,8 @@ cd scanfast.online
 ### 3. Install dependencies
 
 ```sh
-npm install
+bun install
+# or with npm: npm install
 ```
 
 ### 4. Create a branch
@@ -48,7 +49,8 @@ Branch naming convention:
 ### 5. Start the dev server
 
 ```sh
-npm run dev
+bun run dev
+# or with npm: npm run dev
 ```
 
 Vite will print the local URL in the terminal. The port is chosen automatically.
@@ -62,7 +64,8 @@ Keep changes focused. One branch = one logical change. If you find an unrelated 
 Before committing, confirm there are no TypeScript errors and the production build succeeds:
 
 ```sh
-npm run build
+bun run build
+# or with npm: npm run build
 ```
 
 Fix any errors before proceeding.
@@ -140,7 +143,7 @@ These are hard rules — PRs that violate them will be rejected:
 - **No server-side processing.** Everything runs in the browser
 - **No ads, logins, analytics, or tracking**
 - **No external CDN/API dependencies at runtime**
-- **Max 20 pages per session**
+- **Max 50 pages per session**
 - **Max 20 undo/redo operations**
 
 ## Reporting Bugs

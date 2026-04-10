@@ -21,6 +21,18 @@
   background: linear-gradient(rgba(0, 0, 0, 0.6), transparent);
 }
 
+.top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .done-btn {
   display: flex;
   align-items: center;
@@ -34,16 +46,26 @@
   font-weight: 600;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+  transition: background 300ms ease, color 300ms ease;
 }
 
 .done-btn:active {
   background: var(--cds-button-primary-active, #0043ce);
 }
 
+.done-btn--disabled {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+  cursor: default;
+}
+
 .viewfinder {
   flex: 1;
   width: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  background: #000;
 }
 
 .camera-error {
@@ -71,6 +93,7 @@
 }
 
 .control-btn {
+  position: relative;
   width: 48px;
   height: 48px;
   border-radius: 50%;
@@ -87,6 +110,32 @@
 .control-btn:disabled {
   opacity: 0.3;
   cursor: default;
+}
+
+.control-btn--active {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.control-btn-placeholder {
+  width: 48px;
+  height: 48px;
+}
+
+.flash-auto-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: #fff;
+  color: #000;
+  font-size: 0.5rem;
+  font-weight: 900;
+  line-height: 12px;
+  text-align: center;
+  letter-spacing: -0.5px;
+  pointer-events: none;
 }
 
 .capture-btn {
@@ -122,4 +171,32 @@
 
 .hidden-input {
   display: none;
+}
+
+/* --- Capture fly-to-done animation --- */
+.capture-fly-thumb {
+  position: absolute;
+  object-fit: cover;
+  z-index: 50;
+  pointer-events: none;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  border-radius: 0;
+  opacity: 1;
+  transform: translate(0, 0) scale(1);
+  transition:
+    transform 900ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 900ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 900ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Subsequent captures: pulse */
+.done-btn--pulse {
+  animation: done-pulse 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes done-pulse {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.15); }
+  100% { transform: scale(1); }
 }

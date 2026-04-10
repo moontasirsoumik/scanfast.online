@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react';
-import { Loading } from '@carbon/react';
+import { Loading, Button } from '@carbon/react';
 import { Close, ChevronLeft, ChevronRight } from '@carbon/icons-react';
 import { exportPageAsImage, type PageData } from '@/services/pdf';
 import useIsMobile from '@/hooks/useIsMobile';
@@ -159,13 +159,15 @@ export default function PagePreview({ pages, initialIndex, onClose }: PagePrevie
         <span className="page-preview-counter">
           {safeIndex + 1} / {pages.length}
         </span>
-        <button
-          className="page-preview-close"
+        <Button
+          className="sf-preview-close"
+          kind="ghost"
+          size="sm"
+          hasIconOnly
+          renderIcon={Close}
+          iconDescription="Close preview"
           onClick={onClose}
-          aria-label="Close preview"
-        >
-          <Close size={20} />
-        </button>
+        />
       </div>
 
       <div

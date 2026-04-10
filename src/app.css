@@ -106,6 +106,12 @@ body {
 	-moz-osx-font-smoothing: grayscale;
 }
 
+html.sf-crop-focus-mode,
+body.sf-crop-focus-mode {
+	overflow: hidden;
+	overscroll-behavior: none;
+}
+
 /* ── Flat design enforcement ── */
 *,
 *::before,
@@ -300,6 +306,30 @@ code, pre, .cds--snippet {
 	overflow-wrap: anywhere;
 }
 
+/* Keep tooltips within the viewport */
+.cds--popover-container {
+	position: relative;
+}
+
+.cds--popover {
+	position: absolute;
+}
+
+.cds--popover--caret,
+.cds--popover--drop-shadow,
+.cds--popover--high-contrast {
+	max-width: calc(100vw - 2rem);
+	overflow: hidden;
+	word-break: break-word;
+}
+
+.cds--popover-content {
+	left: auto;
+	right: auto;
+	max-width: calc(100vw - 2rem);
+	white-space: normal;
+}
+
 /* ── Border radius: Dropdown list ── */
 .cds--dropdown__list,
 .cds--list-box__menu {
@@ -326,6 +356,12 @@ code, pre, .cds--snippet {
 .cds--content {
 	background: var(--cds-background) !important;
 	padding: 0;
+	transition: margin-top 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html.sf-crop-focus-mode .cds--content,
+body.sf-crop-focus-mode .cds--content {
+	margin-top: 0 !important;
 }
 
 .sf-preview-header {
@@ -337,8 +373,12 @@ code, pre, .cds--snippet {
 	justify-content: space-between;
 	gap: 0.75rem;
 	padding: 0.75rem;
-	background: linear-gradient(180deg, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.55) 68%, rgba(0, 0, 0, 0));
+	background: none;
 	pointer-events: none;
+	visibility: visible;
+	transition:
+		opacity 300ms cubic-bezier(0.22, 1, 0.36, 1),
+		transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sf-preview-header > * {
@@ -403,6 +443,8 @@ code, pre, .cds--snippet {
 	top: 50%;
 	transform: translateY(-50%);
 	z-index: 18;
+	visibility: visible;
+	transition: opacity 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sf-preview-nav-button--left {
@@ -420,6 +462,23 @@ code, pre, .cds--snippet {
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	pointer-events: none;
+}
+
+html.sf-crop-focus-mode .sf-preview-header,
+body.sf-crop-focus-mode .sf-preview-header {
+	opacity: 0;
+	transform: translateY(-0.75rem);
+}
+
+html.sf-crop-focus-mode .sf-preview-header > *,
+body.sf-crop-focus-mode .sf-preview-header > * {
+	pointer-events: none;
+}
+
+html.sf-crop-focus-mode .sf-preview-nav-button,
+body.sf-crop-focus-mode .sf-preview-nav-button {
+	opacity: 0;
 	pointer-events: none;
 }
 

@@ -4,7 +4,58 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com), and this project adheres to [Semantic Versioning](https://semver.org).
 
-## [0.1.0] - 2026-04-03
+## [0.2.3] - 2026-04-09
+
+### Changed
+
+- Flash button moved to bottom controls bar (left of shutter) for easy thumb access
+- Camera switch button moved to top-left bar; only shown when torch AND multiple cameras are both present
+- Camera flip icon updated to outline-style camera with circular-arrows inside (matching reference)
+- Auto flash "A" badge repositioned to overlap the flash bolt as a compact rounded-square indicator
+- Auto flash exposure delay increased from 150ms → 500ms for proper brightness
+
+### Fixed
+
+- CropEditor fullscreen on iOS Safari/Edge: added `webkitRequestFullscreen`, `webkitExitFullscreen`,
+  `webkitFullscreenElement`, `webkitfullscreenchange` event and `:-webkit-full-screen` CSS rules
+
+## [0.2.2] - 2026-04-09
+
+### Changed
+
+- Flash button moved to left side of top bar (with Close), away from Done button animation
+- Auto flash mode now shows a filled white circle "A" icon badge on the flash bolt (not floating text)
+- Switch camera button replaced with a custom camera-flip SVG icon (camera body + rotation arrow) for intuitive recognition
+
+## [0.2.1] - 2026-04-09
+
+### Added
+
+- Flash mode toggle in camera view: Off / On / Auto — only shown when device torch is supported
+- Auto flash fires the torch briefly at capture time (150 ms) then turns off automatically
+- Switch camera button now only shown when multiple cameras are detected (`enumerateDevices`)
+- Switch camera icon changed to `CameraAction` (camera-flip style)
+
+## [0.2.0] - 2026-04-09
+
+### Added
+
+- CropEditor fullscreen mode with toggle button, enter/exit animations, and Cancel/Confirm actions
+- Camera capture fly-to-done animation: captured frame flies to Done button instead of a toast
+- Done button always visible in camera view; disabled/greyed when no pages captured
+- Pulse animation on Done button for every capture
+
+### Changed
+
+- Camera viewfinder changed from `object-fit: cover` to `object-fit: contain` — full feed visible on mobile without cropping
+- PDF preview close button now matches scanner style (Carbon ghost button)
+- Removed decorative shadow gradients from scanner and PDF preview headers
+- Tooltip max-width capped to viewport width to prevent overflow on small screens
+
+### Fixed
+
+- Done button count updates after the fly animation completes, not before
+
 
 ### Added
 

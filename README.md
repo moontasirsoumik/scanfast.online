@@ -83,13 +83,13 @@ static/
 | `Delete` | Delete selected pages |
 | `←` `→` `↑` `↓` | Navigate page grid |
 
-## Limitations
+## Privacy & Performance Features
 
-- **20 pages per session** — all data is held in memory, no database
-- **20 undo/redo operations** — older operations are dropped
-- **Session data lost on tab close** — by design, for privacy
-- **No server-side processing** — large files may be slow on low-end devices
-- **No OpenCV edge detection yet** — manual crop handles only for now
+- **50 pages per session** — optimized for speed with in-memory processing, no database means nothing is stored
+- **Rolling undo history (20 operations)** — keeps memory footprint low while still supporting full workflow
+- **Session data cleared on close** — your privacy guaranteed; no data persistence means zero tracking
+- **Pure client-side processing** — works offline, no uploads, complete data ownership
+- **Manual crop controls** — precise 4-corner adjustment without any AI/ML dependencies
 
 ## Contributing
 

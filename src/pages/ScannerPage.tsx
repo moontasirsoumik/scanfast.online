@@ -143,8 +143,7 @@ export default function ScannerPage() {
       };
       const added = useScannerStore.getState().addPage(page);
       if (added) {
-        const count = useScannerStore.getState().pages.length;
-        addToast({ kind: 'info', title: `Page ${count} captured`, subtitle: 'Tap Done when finished.', duration: 1200 });
+        // Visual feedback handled by fly-to-done animation in CameraView
       }
     } catch (err) {
       addToast({ kind: 'error', title: 'Capture failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
