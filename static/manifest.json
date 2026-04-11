@@ -1,7 +1,7 @@
 {
 	"name": "ScanFastOnline",
 	"short_name": "ScanFastOnline",
-	"description": "Free offline document scanner and PDF manipulator. No ads, no logins, no tracking.",
+	"description": "Free offline document scanner and PDF tools. No ads, no logins, no tracking.",
 	"start_url": "/",
 	"display": "standalone",
 	"background_color": "#000000",

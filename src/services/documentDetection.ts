@@ -17,13 +17,13 @@ import type { QuadCrop } from '@/stores/scanner';
 // ─── Configuration ────────────────────────────────────────────────────
 
 /** Processing resolution (longest edge) for real-time detection */
-const DETECT_SIZE = 400;
+const DETECT_SIZE = 640;
 /** Higher resolution for static image (capture-time) detection */
-const HQ_DETECT_SIZE = 800;
+const HQ_DETECT_SIZE = 1200;
 /** Minimum quad area as fraction of frame */
 const MIN_AREA_RATIO = 0.04;
 /** Maximum quad area as fraction of frame */
-const MAX_AREA_RATIO = 0.96;
+const MAX_AREA_RATIO = 0.998;
 /** Minimum interior blob size as fraction of frame pixels */
 const MIN_BLOB_RATIO = 0.03;
 /** Minimum corner angle (degrees) */
@@ -34,6 +34,8 @@ const MAX_CORNER_ANGLE = 145;
 const STABILIZE_FRAMES = 6;
 /** Minimum score to accept a quad */
 const MIN_SCORE = 0.2;
+/** No border clearing — edges at the frame border are valid barriers for close-up detection */
+const BORDER_CLEAR_PX = 0;
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -206,6 +208,65 @@ function thresholdMagnitude(mag: Uint8Array, w: number, h: number, threshold: nu
 	return out;
 }
 
+function percentile(values: Uint8Array, q: number): number {
+	if (values.length === 0) return 0;
+	const hist = new Uint32Array(256);
+	for (let i = 0; i < values.length; i++) hist[values[i]]++;
+	const target = Math.max(0, Math.min(values.length - 1, Math.floor(q * (values.length - 1))));
+	let seen = 0;
+	for (let i = 0; i < hist.length; i++) {
+		seen += hist[i];
+		if (seen > target) return i;
+	}
+	return 255;
+}
+
+function computePaperScore(
+	data: Uint8ClampedArray,
+	w: number,
+	h: number
+): Uint8Array {
+	const out = new Uint8Array(w * h);
+	for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+		const r = data[i];
+		const g = data[i + 1];
+		const b = data[i + 2];
+		const maxC = Math.max(r, g, b);
+		const minC = Math.min(r, g, b);
+		const brightness = (r + g + b) / 3;
+		const saturation = maxC - minC;
+		const neutrality = 255 - saturation;
+		const score = brightness * 0.55 + minC * 0.35 + neutrality * 0.22;
+		out[j] = Math.max(0, Math.min(255, Math.round(score)));
+	}
+	return out;
+}
+
+function thresholdPaperMask(score: Uint8Array, w: number, h: number): Uint8Array {
+	const out = new Uint8Array(w * h);
+	const p50 = percentile(score, 0.50);
+	const p70 = percentile(score, 0.70);
+	const p82 = percentile(score, 0.82);
+
+	// When paper fills most of the frame, p70 and p82 are both high (all paper),
+	// making the threshold too high and splitting the paper. Detect this case
+	// and use a lower, absolute-biased threshold.
+	const spread = p82 - p50;
+	let threshold: number;
+	if (spread < 25) {
+		// Low spread = paper dominates the frame. Use absolute floor based on
+		// the bimodal valley between dark background and bright paper.
+		threshold = Math.max(110, Math.round(p50 * 0.55 + 60));
+	} else {
+		threshold = Math.max(120, Math.min(210, Math.round(p70 * 0.40 + p82 * 0.45 + 15)));
+	}
+
+	for (let i = 0; i < score.length; i++) {
+		out[i] = score[i] >= threshold ? 255 : 0;
+	}
+	return out;
+}
+
 /** Separable 5×5 Gaussian blur (σ ≈ 1.4) */
 function gaussianBlur(src: Uint8Array, w: number, h: number): Uint8Array {
 	const K = [1, 4, 6, 4, 1];
@@ -336,6 +397,33 @@ function dilate(src: Uint8Array, w: number, h: number, iterations: number): Uint
 		cur = dst;
 	}
 	return cur;
+}
+
+function erode(src: Uint8Array, w: number, h: number, iterations: number): Uint8Array {
+	let cur = src;
+	for (let iter = 0; iter < iterations; iter++) {
+		const dst = new Uint8Array(w * h);
+		for (let y = 1; y < h - 1; y++) {
+			for (let x = 1; x < w - 1; x++) {
+				let keep = 255;
+				for (let dy = -1; dy <= 1 && keep; dy++) {
+					for (let dx = -1; dx <= 1; dx++) {
+						if (!cur[(y + dy) * w + x + dx]) {
+							keep = 0;
+							break;
+						}
+					}
+				}
+				dst[y * w + x] = keep;
+			}
+		}
+		cur = dst;
+	}
+	return cur;
+}
+
+function closeMask(src: Uint8Array, w: number, h: number, iterations: number): Uint8Array {
+	return erode(dilate(src, w, h, iterations), w, h, iterations);
 }
 
 /** Adaptive threshold using integral image */
@@ -489,6 +577,74 @@ function findLargestInteriorBlob(outside: Uint8Array, w: number, h: number): Pt[
 	return bestBoundary;
 }
 
+function findLargestForegroundBlob(mask: Uint8Array, w: number, h: number): Pt[] {
+	const visited = new Uint8Array(w * h);
+	const queue = new Int32Array(w * h);
+	let bestBoundary: Pt[] = [];
+	let bestScore = 0;
+	const total = w * h;
+	const centerX = w / 2;
+	const centerY = h / 2;
+
+	for (let startIdx = 0; startIdx < total; startIdx++) {
+		if (visited[startIdx] || !mask[startIdx]) continue;
+
+		let head = 0;
+		let tail = 0;
+		let size = 0;
+		let sumX = 0;
+		let sumY = 0;
+		const boundary: Pt[] = [];
+		queue[tail++] = startIdx;
+		visited[startIdx] = 1;
+
+		while (head < tail) {
+			const idx = queue[head++];
+			size++;
+			const cx = idx % w;
+			const cy = (idx / w) | 0;
+			sumX += cx;
+			sumY += cy;
+			let isBoundary = false;
+
+			for (let dy = -1; dy <= 1; dy++) {
+				for (let dx = -1; dx <= 1; dx++) {
+					if (dx === 0 && dy === 0) continue;
+					const nx = cx + dx;
+					const ny = cy + dy;
+					if (nx < 0 || nx >= w || ny < 0 || ny >= h) {
+						isBoundary = true;
+						continue;
+					}
+					const ni = ny * w + nx;
+					if (!mask[ni]) {
+						isBoundary = true;
+					} else if (!visited[ni]) {
+						visited[ni] = 1;
+						queue[tail++] = ni;
+					}
+				}
+			}
+
+			if (isBoundary) boundary.push({ x: cx, y: cy });
+		}
+
+		if (size < total * MIN_BLOB_RATIO || boundary.length < 8) continue;
+
+		const blobCx = sumX / size;
+		const blobCy = sumY / size;
+		const centerDist = Math.hypot(blobCx - centerX, blobCy - centerY) / Math.hypot(centerX, centerY);
+		const centrality = Math.max(0.55, 1 - centerDist * 0.45);
+		const score = size * centrality;
+		if (score > bestScore) {
+			bestScore = score;
+			bestBoundary = boundary;
+		}
+	}
+
+	return bestBoundary;
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // CONVEX HULL (Andrew's monotone chain)
 // ═══════════════════════════════════════════════════════════════════════
@@ -596,14 +752,14 @@ function fitToQuad(hull: Pt[], frameW: number, frameH: number): [Pt, Pt, Pt, Pt]
 		const simplified = simplifyClosedPolygon(hull, perim * factor);
 		if (simplified.length === 4) return orderQuadPoints(simplified);
 		if (simplified.length >= 4 && simplified.length <= 12) {
-			const quad = selectBestQuadFromPolygon(simplified, frameW, frameH);
+			const quad = selectBestQuadFromPolygon(simplified, frameW, frameH, hull);
 			if (quad) return quad;
 		}
 		if (simplified.length < 4) break;
 	}
 
 	const reducedHull = reducePolygonForQuadSearch(hull);
-	return selectBestQuadFromPolygon(reducedHull, frameW, frameH)
+	return selectBestQuadFromPolygon(reducedHull, frameW, frameH, hull)
 		?? findSharpestFourCorners(hull, frameW, frameH);
 }
 
@@ -639,10 +795,10 @@ function findSharpestFourCorners(poly: Pt[], frameW: number, frameH: number): [P
 		const top4 = ranked
 			.slice(0, Math.min(8, ranked.length))
 			.map(r => poly[r.i]);
-		return selectBestQuadFromPolygon(top4, frameW, frameH) ?? orderQuadPoints(top4.slice(0, 4));
+		return selectBestQuadFromPolygon(top4, frameW, frameH, poly) ?? orderQuadPoints(top4.slice(0, 4));
 	}
 
-	return selectBestQuadFromPolygon(picks.map(i => poly[i]), frameW, frameH)
+	return selectBestQuadFromPolygon(picks.map(i => poly[i]), frameW, frameH, poly)
 		?? orderQuadPoints(picks.map(i => poly[i]));
 }
 
@@ -669,7 +825,8 @@ function reducePolygonForQuadSearch(poly: Pt[], maxPts = 12): Pt[] {
 function selectBestQuadFromPolygon(
 	poly: Pt[],
 	frameW: number,
-	frameH: number
+	frameH: number,
+	supportPts: Pt[] = poly
 ): [Pt, Pt, Pt, Pt] | null {
 	if (poly.length < 4) return null;
 
@@ -682,7 +839,10 @@ function selectBestQuadFromPolygon(
 				for (let l = k + 1; l < poly.length; l++) {
 					const quad = orderQuadPoints([poly[i], poly[j], poly[k], poly[l]]);
 					if (!isConvex(quad)) continue;
-					const score = scoreQuadGeometry(quad, frameW, frameH);
+					const geometryScore = scoreQuadGeometry(quad, frameW, frameH);
+					if (geometryScore === 0) continue;
+					const supportScore = scoreQuadHullAlignment(quad, supportPts, frameW, frameH);
+					const score = geometryScore * 0.72 + supportScore * 0.28;
 					if (score > bestScore) {
 						bestQuad = quad;
 						bestScore = score;
@@ -693,6 +853,44 @@ function selectBestQuadFromPolygon(
 	}
 
 	return bestQuad;
+}
+
+function scoreQuadHullAlignment(
+	corners: [Pt, Pt, Pt, Pt],
+	supportPts: Pt[],
+	frameW: number,
+	frameH: number
+): number {
+	if (supportPts.length === 0) return 0;
+
+	const tolerance = Math.max(3, Math.min(frameW, frameH) * 0.018);
+	const edgeHits = [0, 0, 0, 0];
+	let totalHits = 0;
+
+	for (const p of supportPts) {
+		let bestEdge = -1;
+		let bestDist = Infinity;
+		for (let i = 0; i < 4; i++) {
+			const d = pointToLineDist(p, corners[i], corners[(i + 1) % 4]);
+			if (d < bestDist) {
+				bestDist = d;
+				bestEdge = i;
+			}
+		}
+
+		if (bestEdge >= 0 && bestDist <= tolerance) {
+			totalHits++;
+			edgeHits[bestEdge]++;
+		}
+	}
+
+	const overallCoverage = totalHits / supportPts.length;
+	const balancedCoverage = edgeHits.reduce(
+		(sum, hits) => sum + Math.min(1, hits / Math.max(2, supportPts.length * 0.08)),
+		0,
+	) / 4;
+
+	return overallCoverage * 0.7 + balancedCoverage * 0.3;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -798,11 +996,17 @@ function scoreQuadGeometry(corners: [Pt, Pt, Pt, Pt], frameW: number, frameH: nu
 		scoreLengthSimilarity(edgeLens[1], edgeLens[3])
 	) / 2;
 
-	return angleScore * 0.32
-		+ areaScore * 0.2
-		+ convexScore * 0.18
-		+ aspectScore * 0.15
-		+ oppositeEdgeScore * 0.15;
+	const parallelismScore = (
+		scoreParallelEdges(corners[0], corners[1], corners[2], corners[3]) +
+		scoreParallelEdges(corners[1], corners[2], corners[3], corners[0])
+	) / 2;
+
+	return angleScore * 0.24
+		+ areaScore * 0.14
+		+ convexScore * 0.12
+		+ aspectScore * 0.14
+		+ oppositeEdgeScore * 0.14
+		+ parallelismScore * 0.22;
 }
 
 function scoreLengthSimilarity(a: number, b: number): number {
@@ -811,6 +1015,60 @@ function scoreLengthSimilarity(a: number, b: number): number {
 	if (longer < 1e-6) return 0;
 	const ratio = shorter / longer;
 	return ratio >= 0.35 ? 1 : ratio / 0.35;
+}
+
+function scoreParallelEdges(a1: Pt, a2: Pt, b1: Pt, b2: Pt): number {
+	const vaX = a2.x - a1.x;
+	const vaY = a2.y - a1.y;
+	const vbX = b2.x - b1.x;
+	const vbY = b2.y - b1.y;
+	const lenA = Math.hypot(vaX, vaY);
+	const lenB = Math.hypot(vbX, vbY);
+	if (lenA < 1e-6 || lenB < 1e-6) return 0;
+	const cos = Math.abs((vaX * vbX + vaY * vbY) / (lenA * lenB));
+	const angleDiff = Math.acos(Math.max(-1, Math.min(1, cos)));
+	const fortyDegrees = 40 * Math.PI / 180;
+	return Math.max(0, 1 - angleDiff / fortyDegrees);
+}
+
+function expandQuadOutward(
+	corners: [Pt, Pt, Pt, Pt],
+	frameW: number,
+	frameH: number
+): [Pt, Pt, Pt, Pt] {
+	const center = {
+		x: (corners[0].x + corners[1].x + corners[2].x + corners[3].x) / 4,
+		y: (corners[0].y + corners[1].y + corners[2].y + corners[3].y) / 4,
+	};
+	const areaRatio = polygonArea(corners) / (frameW * frameH);
+	// Minimal expansion — just enough to avoid sub-pixel clipping
+	const padPx = Math.max(
+		1,
+		Math.min(Math.min(frameW, frameH) * 0.008, Math.min(frameW, frameH) * (0.003 + areaRatio * 0.005)),
+	);
+
+	const expanded = corners.map((corner) => {
+		const vx = corner.x - center.x;
+		const vy = corner.y - center.y;
+		const len = Math.hypot(vx, vy);
+		if (len < 1e-6) return { ...corner };
+		const scale = (len + padPx) / len;
+		return {
+			x: Math.max(0, Math.min(frameW - 1, center.x + vx * scale)),
+			y: Math.max(0, Math.min(frameH - 1, center.y + vy * scale)),
+		};
+	});
+
+	// Snap corners very near frame edges to the edge (close-up only)
+	const snapDist = Math.max(2, Math.min(frameW, frameH) * 0.012);
+	for (const p of expanded) {
+		if (p.x < snapDist) p.x = 0;
+		if (p.y < snapDist) p.y = 0;
+		if (p.x > frameW - 1 - snapDist) p.x = frameW - 1;
+		if (p.y > frameH - 1 - snapDist) p.y = frameH - 1;
+	}
+
+	return orderQuadPoints(expanded) as [Pt, Pt, Pt, Pt];
 }
 
 function sampleBestEdgeResponse(
@@ -895,16 +1153,113 @@ function scoreQuadEdgeSupport(
 	return (supportHits / total) * 0.65 + (strength / total) * 0.35;
 }
 
+function sampleGray(gray: Uint8Array, w: number, h: number, x: number, y: number): number | null {
+	const ix = Math.round(x);
+	const iy = Math.round(y);
+	if (ix < 0 || ix >= w || iy < 0 || iy >= h) return null;
+	return gray[iy * w + ix];
+}
+
+function scoreQuadBoundaryContrast(
+	corners: [Pt, Pt, Pt, Pt],
+	gray: Uint8Array,
+	w: number,
+	h: number
+): number {
+	const cx = corners.reduce((sum, p) => sum + p.x, 0) / 4;
+	const cy = corners.reduce((sum, p) => sum + p.y, 0) / 4;
+	// Sample further from the edge to get a clear inside-vs-outside read
+	const insideOffset = Math.max(6, Math.min(w, h) * 0.025);
+	const outsideOffset = insideOffset * 1.6;
+	let totalScore = 0;
+	let usedEdges = 0;
+	let worstEdge = Infinity;
+
+	for (let i = 0; i < 4; i++) {
+		const a = corners[i];
+		const b = corners[(i + 1) % 4];
+		const dx = b.x - a.x;
+		const dy = b.y - a.y;
+		const len = Math.hypot(dx, dy);
+		if (len < 6) continue;
+
+		let nx = -dy / len;
+		let ny = dx / len;
+		const mx = (a.x + b.x) * 0.5;
+		const my = (a.y + b.y) * 0.5;
+		if ((cx - mx) * nx + (cy - my) * ny < 0) {
+			nx = -nx;
+			ny = -ny;
+		}
+
+		// Check if this edge is near the frame border — if so, outside samples
+		// may fall outside the image, which is fine (paper extends past frame)
+		const edgeNearBorder =
+			(Math.abs(a.y) < 4 && Math.abs(b.y) < 4) || // top
+			(Math.abs(a.y - (h - 1)) < 4 && Math.abs(b.y - (h - 1)) < 4) || // bottom
+			(Math.abs(a.x) < 4 && Math.abs(b.x) < 4) || // left
+			(Math.abs(a.x - (w - 1)) < 4 && Math.abs(b.x - (w - 1)) < 4); // right
+
+		const samples = Math.min(40, Math.max(12, Math.round(len / 5)));
+		let edgeContrast = 0;
+		let strongHits = 0;
+		let usedSamples = 0;
+
+		for (let s = 0; s < samples; s++) {
+			const t = (s + 1) / (samples + 1);
+			const px = a.x + dx * t;
+			const py = a.y + dy * t;
+			const inside = sampleGray(gray, w, h, px + nx * insideOffset, py + ny * insideOffset);
+			const outside = sampleGray(gray, w, h, px - nx * outsideOffset, py - ny * outsideOffset);
+			if (inside === null || outside === null) continue;
+
+			const contrast = Math.abs(inside - outside) / 255;
+			edgeContrast += Math.min(1, contrast / 0.15);
+			if (contrast >= 0.06) strongHits++;
+			usedSamples++;
+		}
+
+		if (usedSamples === 0) {
+			// Edge is entirely at the frame border — treat as OK for close-up
+			if (edgeNearBorder) {
+				usedEdges++;
+				totalScore += 0.6;
+				continue;
+			}
+			continue;
+		}
+
+		const edgeScore = (edgeContrast / usedSamples) * 0.65 + (strongHits / usedSamples) * 0.35;
+		totalScore += edgeScore;
+		usedEdges++;
+		if (edgeScore < worstEdge) worstEdge = edgeScore;
+	}
+
+	if (usedEdges === 0) return 0;
+	let avg = totalScore / usedEdges;
+
+	// Heavy penalty if ANY edge has very low contrast — likely cutting through
+	// the paper or extending past it into a same-brightness object
+	if (worstEdge < 0.15) avg *= 0.25;
+	else if (worstEdge < 0.3) avg *= 0.55;
+
+	return avg;
+}
+
 function scoreQuad(
 	corners: [Pt, Pt, Pt, Pt],
 	frameW: number,
 	frameH: number,
-	field: GradientField | null
+	field: GradientField | null,
+	gray: Uint8Array | null
 ): number {
 	const geometryScore = scoreQuadGeometry(corners, frameW, frameH);
-	if (!field || geometryScore === 0) return geometryScore;
-	const edgeScore = scoreQuadEdgeSupport(corners, field, frameW, frameH);
-	return geometryScore * 0.72 + edgeScore * 0.28;
+	if (geometryScore === 0) return 0;
+
+	const edgeScore = field ? scoreQuadEdgeSupport(corners, field, frameW, frameH) : geometryScore;
+	const contrastScore = gray ? scoreQuadBoundaryContrast(corners, gray, frameW, frameH) : geometryScore;
+
+	return geometryScore * 0.28 + edgeScore * 0.28 + contrastScore * 0.44;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -961,7 +1316,7 @@ function fitEdgeLine(
 	const tx = dx / len, ty = dy / len;
 	const nx = -ty, ny = tx; // perpendicular
 
-	const NUM_SAMPLES = Math.min(40, Math.max(10, Math.round(len)));
+	const NUM_SAMPLES = Math.min(60, Math.max(14, Math.round(len * 1.5)));
 	const edgePts: Pt[] = [];
 
 	for (let s = 0; s < NUM_SAMPLES; s++) {
@@ -970,7 +1325,7 @@ function fitEdgeLine(
 		const cy = p1.y + dy * t;
 
 		const response = sampleBestEdgeResponse(cx, cy, nx, ny, field, w, h, corridor);
-		if (response.mag > 12 && response.align > 0.35) {
+		if (response.mag > 18 && response.align > 0.4) {
 			edgePts.push({ x: response.x, y: response.y });
 		}
 	}
@@ -990,10 +1345,10 @@ function robustLineFit(pts: Pt[]): Line | null {
 	let inliers = pts.slice();
 	let line = leastSquaresLine(inliers);
 
-	for (let iter = 0; iter < 3; iter++) {
+	for (let iter = 0; iter < 4; iter++) {
 		const distances = inliers.map(p => distToLine(p, line)).sort((a, b) => a - b);
 		const median = distances[Math.floor(distances.length / 2)] ?? 0;
-		const threshold = Math.max(1.5, Math.min(4.5, median * 2.5 + 0.5));
+		const threshold = Math.max(1.0, Math.min(3.0, median * 2.0 + 0.3));
 		const next = inliers.filter(p => distToLine(p, line) <= threshold);
 		if (next.length < 3 || next.length === inliers.length) break;
 		inliers = next;
@@ -1059,14 +1414,14 @@ function refineQuadCorners(
 		[quad[3], quad[0]], // left
 	];
 
-	const corridor = Math.max(6, Math.min(w, h) * 0.04);
+	const corridor = Math.max(4, Math.min(w, h) * 0.025);
 	const lines: (Line | null)[] = sides.map(([a, b]) =>
 		fitEdgeLine(a, b, field, w, h, corridor)
 	);
 
 	// If all 4 lines fitted, intersect them for precise corners
 	const refined: Pt[] = [];
-	const maxShift = Math.max(10, Math.min(w, h) * 0.12);
+	const maxShift = Math.max(8, Math.min(w, h) * 0.08);
 	for (let i = 0; i < 4; i++) {
 		const lineA = lines[(i + 3) % 4]; // side ending at this corner
 		const lineB = lines[i];            // side starting at this corner
@@ -1107,14 +1462,16 @@ function refineQuadCorners(
  */
 function detectQuadFromBinaryMap(
 	binary: Uint8Array, w: number, h: number, dilateIter: number,
-	gradientField: GradientField | null
+	gradientField: GradientField | null,
+	gray: Uint8Array | null
 ): ScoredQuad | null {
 	const dilated = dilate(binary, w, h, dilateIter);
 
-	// Clear a 2px margin so flood fill can always start from the border
+	// Clear only a minimal border margin so close-up pages near the frame edge
+	// are still eligible candidates.
 	for (let y = 0; y < h; y++) {
 		for (let x = 0; x < w; x++) {
-			if (x < 2 || x >= w - 2 || y < 2 || y >= h - 2)
+			if (x < BORDER_CLEAR_PX || x >= w - BORDER_CLEAR_PX || y < BORDER_CLEAR_PX || y >= h - BORDER_CLEAR_PX)
 				dilated[y * w + x] = 0;
 		}
 	}
@@ -1128,7 +1485,7 @@ function detectQuadFromBinaryMap(
 		if (!outside[i]) interiorCount++;
 	}
 	if (interiorCount < totalPixels * MIN_BLOB_RATIO) return null;
-	if (interiorCount > totalPixels * 0.95) return null; // fill leaked
+	if (interiorCount > totalPixels * 0.998) return null; // fill leaked
 
 	const boundary = findLargestInteriorBlob(outside, w, h);
 	if (boundary.length < 8) return null;
@@ -1139,13 +1496,13 @@ function detectQuadFromBinaryMap(
 	let quad = fitToQuad(hull, w, h);
 	if (!quad) return null;
 
-	let score = scoreQuad(quad, w, h, gradientField);
+	let score = scoreQuad(quad, w, h, gradientField, gray);
 
 	// Refine corners using gradient edge fitting, but only keep the refinement
 	// when it actually improves the candidate.
 	if (gradientField) {
 		const refined = refineQuadCorners(quad, gradientField, w, h);
-		const refinedScore = scoreQuad(refined, w, h, gradientField);
+		const refinedScore = scoreQuad(refined, w, h, gradientField, gray);
 		if (refinedScore >= score * 0.98) {
 			quad = refined;
 			score = refinedScore;
@@ -1154,6 +1511,45 @@ function detectQuadFromBinaryMap(
 
 	if (score < MIN_SCORE) return null;
 
+	return { corners: quad, score };
+}
+
+function detectQuadFromForegroundMask(
+	mask: Uint8Array,
+	w: number,
+	h: number,
+	gradientField: GradientField | null,
+	gray: Uint8Array | null
+): ScoredQuad | null {
+	const cleaned = closeMask(mask, w, h, 2);
+
+	for (let y = 0; y < h; y++) {
+		for (let x = 0; x < w; x++) {
+			if (x < BORDER_CLEAR_PX || x >= w - BORDER_CLEAR_PX || y < BORDER_CLEAR_PX || y >= h - BORDER_CLEAR_PX)
+				cleaned[y * w + x] = 0;
+		}
+	}
+
+	const boundary = findLargestForegroundBlob(cleaned, w, h);
+	if (boundary.length < 8) return null;
+
+	const hull = convexHull(boundary);
+	if (hull.length < 4) return null;
+
+	let quad = fitToQuad(hull, w, h);
+	if (!quad) return null;
+
+	let score = scoreQuad(quad, w, h, gradientField, gray);
+	if (gradientField) {
+		const refined = refineQuadCorners(quad, gradientField, w, h);
+		const refinedScore = scoreQuad(refined, w, h, gradientField, gray);
+		if (refinedScore >= score * 0.98) {
+			quad = refined;
+			score = refinedScore;
+		}
+	}
+
+	if (score < MIN_SCORE) return null;
 	return { corners: quad, score };
 }
 
@@ -1205,6 +1601,7 @@ function detectAtResolution(
 		gaussianBlur(channels[1], w, h),
 		gaussianBlur(channels[2], w, h),
 	];
+	const paperScore = computePaperScore(imageData.data, w, h);
 
 	// Pre-compute gradient field for corner refinement and edge-aware scoring.
 	const gradientField = sobelField(enhancedBlurred, w, h);
@@ -1219,13 +1616,24 @@ function detectAtResolution(
 		return null;
 	};
 
+	const paperMask = thresholdPaperMask(paperScore, w, h);
+	const paperQuad = detectQuadFromForegroundMask(paperMask, w, h, gradientField, blurred);
+	if (paperQuad) candidates.push(paperQuad);
+	{ const r = maybeReturn(); if (r) return r; }
+
+	// Also try eroded paper mask (separates paper from nearby bright objects like phone screens)
+	const erodedPaperMask = erode(paperMask, w, h, 3);
+	const erodedQuad = detectQuadFromForegroundMask(erodedPaperMask, w, h, gradientField, blurred);
+	if (erodedQuad) candidates.push(erodedQuad);
+	{ const r = maybeReturn(); if (r) return r; }
+
 	// ── Strategy A: Canny on original grayscale ──
 	const cannyPasses: [number, number][] = [
 		[25, 75], [40, 100], [15, 50], [50, 140],
 	];
 	for (const [lo, hi] of cannyPasses) {
 		const edges = cannyEdges(blurred, w, h, lo, hi);
-		const quad = detectQuadFromBinaryMap(edges, w, h, 3, gradientField);
+		const quad = detectQuadFromBinaryMap(edges, w, h, 3, gradientField, blurred);
 		if (quad) candidates.push(quad);
 	}
 	{ const r = maybeReturn(); if (r) return r; }
@@ -1236,7 +1644,7 @@ function detectAtResolution(
 	];
 	for (const [lo, hi] of clahePasses) {
 		const edges = cannyEdges(enhancedBlurred, w, h, lo, hi);
-		const quad = detectQuadFromBinaryMap(edges, w, h, 3, gradientField);
+		const quad = detectQuadFromBinaryMap(edges, w, h, 3, gradientField, blurred);
 		if (quad) candidates.push(quad);
 	}
 	{ const r = maybeReturn(); if (r) return r; }
@@ -1245,7 +1653,7 @@ function detectAtResolution(
 	const colorMag = colorEdgeMagnitude(blurredChannels, w, h);
 	for (const thresh of [30, 50, 20, 70]) {
 		const binary = thresholdMagnitude(colorMag, w, h, thresh);
-		const quad = detectQuadFromBinaryMap(binary, w, h, 3, gradientField);
+		const quad = detectQuadFromBinaryMap(binary, w, h, 3, gradientField, blurred);
 		if (quad) candidates.push(quad);
 	}
 	{ const r = maybeReturn(); if (r) return r; }
@@ -1256,28 +1664,146 @@ function detectAtResolution(
 	];
 	for (const [block, c] of adaptivePasses) {
 		const thresh = adaptiveThreshold(blurred, w, h, block, c);
-		const quad = detectQuadFromBinaryMap(thresh, w, h, 2, gradientField);
+		const quad = detectQuadFromBinaryMap(thresh, w, h, 2, gradientField, blurred);
 		if (quad) candidates.push(quad);
 	}
 	for (const [block, c] of [[21, 5], [11, 3], [31, 8]] as [number, number][]) {
 		const thresh = adaptiveThreshold(enhancedBlurred, w, h, block, c);
-		const quad = detectQuadFromBinaryMap(thresh, w, h, 2, gradientField);
+		const quad = detectQuadFromBinaryMap(thresh, w, h, 2, gradientField, blurred);
 		if (quad) candidates.push(quad);
 	}
+
+	// ── Strategy E: Full-frame fallback for close-up ──
+	const borderQuad = detectFromFullFrame(gradientField, blurred, w, h);
+	if (borderQuad) candidates.push(borderQuad);
 
 	if (candidates.length === 0) return { quad: null, confidence: 0 };
 
 	const best = candidates.reduce((a, b) => b.score > a.score ? b : a);
-	return makeResult(best, w, h);
+
+	// ── Final precision refinement on the winning quad ──
+	// Use a tight corridor for sub-pixel accurate edge fitting
+	const tightCorridor = Math.max(3, Math.min(w, h) * 0.015);
+	const precisionSides: [Pt, Pt][] = [
+		[best.corners[0], best.corners[1]],
+		[best.corners[1], best.corners[2]],
+		[best.corners[2], best.corners[3]],
+		[best.corners[3], best.corners[0]],
+	];
+	const precisionLines = precisionSides.map(([a, b]) =>
+		fitEdgeLine(a, b, gradientField, w, h, tightCorridor)
+	);
+
+	const precisionCorners: Pt[] = [];
+	const precisionMaxShift = Math.max(5, Math.min(w, h) * 0.04);
+	for (let i = 0; i < 4; i++) {
+		const lineA = precisionLines[(i + 3) % 4];
+		const lineB = precisionLines[i];
+		if (lineA && lineB) {
+			const pt = intersectLines(lineA, lineB);
+			if (
+				pt &&
+				pt.x >= -5 && pt.x <= w + 5 &&
+				pt.y >= -5 && pt.y <= h + 5 &&
+				Math.hypot(pt.x - best.corners[i].x, pt.y - best.corners[i].y) <= precisionMaxShift
+			) {
+				precisionCorners.push(pt);
+				continue;
+			}
+		}
+		precisionCorners.push(best.corners[i]);
+	}
+
+	for (const p of precisionCorners) {
+		p.x = Math.max(0, Math.min(w - 1, p.x));
+		p.y = Math.max(0, Math.min(h - 1, p.y));
+	}
+
+	const finalCorners = orderQuadPoints(precisionCorners);
+	const finalScore = scoreQuad(finalCorners, w, h, gradientField, blurred);
+	const finalBest = finalScore >= best.score * 0.92
+		? { corners: finalCorners, score: Math.max(finalScore, best.score) }
+		: best;
+
+	return makeResult(finalBest, w, h);
+}
+
+/**
+ * Full-frame fallback for close-up detection.
+ * Starts with a full-frame quad and uses gradient-based edge line fitting
+ * to find paper edges near each frame border. For borders with no detected
+ * edge, falls back to the frame border itself.
+ */
+function detectFromFullFrame(
+	field: GradientField,
+	gray: Uint8Array,
+	w: number,
+	h: number
+): ScoredQuad | null {
+	const margin = 2;
+	const fullFrame: [Pt, Pt, Pt, Pt] = [
+		{ x: margin, y: margin },
+		{ x: w - margin - 1, y: margin },
+		{ x: w - margin - 1, y: h - margin - 1 },
+		{ x: margin, y: h - margin - 1 },
+	];
+
+	// Sides: top, right, bottom, left — perpendicular search goes inward
+	const sides: [Pt, Pt][] = [
+		[fullFrame[0], fullFrame[1]],
+		[fullFrame[1], fullFrame[2]],
+		[fullFrame[2], fullFrame[3]],
+		[fullFrame[3], fullFrame[0]],
+	];
+
+	const corridor = Math.max(12, Math.min(w, h) * 0.18);
+	const lines: (Line | null)[] = sides.map(([a, b]) =>
+		fitEdgeLine(a, b, field, w, h, corridor)
+	);
+
+	const detectedCount = lines.filter(l => l !== null).length;
+	if (detectedCount < 2) return null;
+
+	// Frame border lines for undetected edges
+	const frameBorderLines: Line[] = [
+		{ a: 0, b: 1, c: -margin },
+		{ a: 1, b: 0, c: -(w - margin - 1) },
+		{ a: 0, b: 1, c: -(h - margin - 1) },
+		{ a: 1, b: 0, c: -margin },
+	];
+
+	const finalLines = lines.map((l, i) => l ?? frameBorderLines[i]);
+
+	// TL = left∩top, TR = top∩right, BR = right∩bottom, BL = bottom∩left
+	const tl = intersectLines(finalLines[3], finalLines[0]);
+	const tr = intersectLines(finalLines[0], finalLines[1]);
+	const br = intersectLines(finalLines[1], finalLines[2]);
+	const bl = intersectLines(finalLines[2], finalLines[3]);
+
+	if (!tl || !tr || !br || !bl) return null;
+
+	const clampPt = (p: Pt): Pt => ({
+		x: Math.max(0, Math.min(w - 1, p.x)),
+		y: Math.max(0, Math.min(h - 1, p.y)),
+	});
+
+	const corners = orderQuadPoints([clampPt(tl), clampPt(tr), clampPt(br), clampPt(bl)]);
+	if (!isConvex(corners)) return null;
+
+	const score = scoreQuad(corners, w, h, field, gray);
+	if (score < MIN_SCORE * 0.8) return null;
+
+	return { corners, score: score * 0.9 };
 }
 
 function makeResult(quad: ScoredQuad, w: number, h: number): DetectionResult {
+	const expanded = expandQuadOutward(quad.corners, w, h);
 	return {
 		quad: {
-			tl: { x: quad.corners[0].x / w, y: quad.corners[0].y / h },
-			tr: { x: quad.corners[1].x / w, y: quad.corners[1].y / h },
-			br: { x: quad.corners[2].x / w, y: quad.corners[2].y / h },
-			bl: { x: quad.corners[3].x / w, y: quad.corners[3].y / h },
+			tl: { x: expanded[0].x / w, y: expanded[0].y / h },
+			tr: { x: expanded[1].x / w, y: expanded[1].y / h },
+			br: { x: expanded[2].x / w, y: expanded[2].y / h },
+			bl: { x: expanded[3].x / w, y: expanded[3].y / h },
 		},
 		confidence: quad.score,
 	};

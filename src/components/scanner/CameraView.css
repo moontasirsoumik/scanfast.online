@@ -192,21 +192,6 @@
 }
 
 /* --- Capture fly-to-done animation --- */
-.capture-fly-thumb {
-  position: absolute;
-  object-fit: cover;
-  z-index: 50;
-  pointer-events: none;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
-  border: 2px solid rgba(255, 255, 255, 0.7);
-  border-radius: 0;
-  opacity: 1;
-  transform: translate(0, 0) scale(1);
-  transition:
-    transform 900ms cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 900ms cubic-bezier(0.16, 1, 0.3, 1),
-    border-radius 900ms cubic-bezier(0.16, 1, 0.3, 1);
-}
 
 /* Subsequent captures: pulse */
 .done-btn--pulse {
@@ -217,4 +202,28 @@
   0%   { transform: scale(1); }
   45%  { transform: scale(1.15); }
   100% { transform: scale(1); }
+}
+
+/* --- Preview card: shows briefly then flies to Done --- */
+.capture-preview-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 70%;
+  max-height: 60%;
+  object-fit: contain;
+  z-index: 50;
+  pointer-events: none;
+  border: 4px solid #fff;
+  border-radius: 6px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.7);
+  opacity: 1;
+  will-change: left, top, max-width, max-height, opacity, border-radius;
+  animation: preview-card-in 120ms ease-out both;
+}
+
+@keyframes preview-card-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }

@@ -16,7 +16,7 @@ export default function AboutPage() {
           <section className="page-header">
             <h1>About ScanFast<span className="brand-tld">Online</span></h1>
             <p className="lead">
-              A free, open-source document scanner and PDF manipulator.
+              A free, open-source document scanner and PDF tools suite.
               No ads, no logins, no tracking. Everything runs in your browser.
             </p>
           </section>

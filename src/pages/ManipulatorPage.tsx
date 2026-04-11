@@ -418,7 +418,20 @@ export default function ManipulatorPage() {
           filter: 'original',
           rotation: 0,
           straighten: 0,
-          cropRect: null
+          cropRect: null,
+          flipH: false,
+          flipV: false,
+          perspectiveH: 0,
+          perspectiveV: 0,
+          brightness: 0,
+          contrast: 0,
+          shadows: 0,
+          filterIntensity: 100,
+          sharpness: 0,
+          warmth: 0,
+          saturation: 0,
+          highlights: 0,
+          vignette: 0
         });
       }
       useScannerStore.getState().addPages(scannerPages);

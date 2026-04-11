@@ -1,9 +1,26 @@
 /** @module Image filters — canvas-based filter pipeline for scanned documents. */
 
-import type { QuadCrop, Point } from '@/stores/scanner';
+import type { QuadCrop, Point, ImageAdjustments } from '@/stores/scanner';
+
+/** Default adjustments — used when caller omits `adjustments` */
+const DEFAULT_ADJUSTMENTS: ImageAdjustments = {
+	flipH: false,
+	flipV: false,
+	perspectiveH: 0,
+	perspectiveV: 0,
+	brightness: 0,
+	contrast: 0,
+	shadows: 0,
+	filterIntensity: 100,
+	sharpness: 0,
+	warmth: 0,
+	saturation: 0,
+	highlights: 0,
+	vignette: 0,
+};
 
 /** Available image filter types */
-export type FilterType = 'original' | 'enhance' | 'document' | 'bw' | 'grayscale' | 'sharpen' | 'color';
+export type FilterType = 'original' | 'enhance' | 'document' | 'bw' | 'grayscale' | 'sharpen' | 'color' | 'warm' | 'cool' | 'fade' | 'vivid';
 
 /** Maximum pixel dimension for stored images (preserves small text at ~257 DPI on A4) */
 const MAX_IMAGE_DIMENSION = 3000;
@@ -281,6 +298,157 @@ function applyPhotoColor(data: Uint8ClampedArray): void {
 	}
 }
 
+function applyWarmFilter(data: Uint8ClampedArray): void {
+	for (let i = 0; i < data.length; i += 4) {
+		data[i] = Math.min(255, data[i] + 12);       // Red boost
+		data[i + 1] = Math.min(255, data[i + 1] + 4); // Slight green boost
+		data[i + 2] = Math.max(0, data[i + 2] - 15);  // Blue reduction
+	}
+}
+
+function applyCoolFilter(data: Uint8ClampedArray): void {
+	for (let i = 0; i < data.length; i += 4) {
+		data[i] = Math.max(0, data[i] - 10);          // Red reduction
+		data[i + 1] = Math.min(255, data[i + 1] + 3); // Slight green boost
+		data[i + 2] = Math.min(255, data[i + 2] + 15); // Blue boost
+	}
+}
+
+function applyFadeFilter(data: Uint8ClampedArray): void {
+	// Lift blacks, reduce contrast, slight desaturation
+	for (let i = 0; i < data.length; i += 4) {
+		const r = data[i], g = data[i + 1], b = data[i + 2];
+		const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+		// Desaturate 30%
+		const dr = r + (lum - r) * 0.3;
+		const dg = g + (lum - g) * 0.3;
+		const db = b + (lum - b) * 0.3;
+		// Lift blacks: remap 0..255 to 30..240
+		data[i] = Math.min(255, Math.max(0, 30 + (dr / 255) * 210));
+		data[i + 1] = Math.min(255, Math.max(0, 30 + (dg / 255) * 210));
+		data[i + 2] = Math.min(255, Math.max(0, 30 + (db / 255) * 210));
+	}
+}
+
+function applyVividFilter(data: Uint8ClampedArray): void {
+	// Strong saturation boost + slight contrast S-curve
+	for (let i = 0; i < data.length; i += 4) {
+		const r = data[i] / 255, g = data[i + 1] / 255, b = data[i + 2] / 255;
+		const max = Math.max(r, g, b), min = Math.min(r, g, b);
+		const delta = max - min;
+		const l = (max + min) / 2;
+		let h = 0, s = 0;
+		if (delta !== 0) {
+			s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+			if (max === r) h = ((g - b) / delta + (g < b ? 6 : 0)) / 6;
+			else if (max === g) h = ((b - r) / delta + 2) / 6;
+			else h = ((r - g) / delta + 4) / 6;
+		}
+		s = Math.min(1, s * 1.5); // 50% saturation boost
+		let rr: number, gg: number, bb: number;
+		if (s === 0) { rr = gg = bb = l; } else {
+			const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+			const p = 2 * l - q;
+			const hue2rgb = (pp: number, qq: number, t: number): number => {
+				if (t < 0) t += 1; if (t > 1) t -= 1;
+				if (t < 1 / 6) return pp + (qq - pp) * 6 * t;
+				if (t < 1 / 2) return qq;
+				if (t < 2 / 3) return pp + (qq - pp) * (2 / 3 - t) * 6;
+				return pp;
+			};
+			rr = hue2rgb(p, q, h + 1 / 3);
+			gg = hue2rgb(p, q, h);
+			bb = hue2rgb(p, q, h - 1 / 3);
+		}
+		// Slight S-curve contrast
+		const sc = (v: number) => v < 0.5 ? 2 * v * v : 1 - 2 * (1 - v) * (1 - v);
+		data[i] = Math.min(255, Math.round(sc(rr) * 0.3 + rr * 0.7) * 255);
+		data[i + 1] = Math.min(255, Math.round(sc(gg) * 0.3 + gg * 0.7) * 255);
+		data[i + 2] = Math.min(255, Math.round(sc(bb) * 0.3 + bb * 0.7) * 255);
+	}
+}
+
+/** Apply sharpness adjustment using unsharp mask (-100..100) */
+function applySharpness(data: Uint8ClampedArray, width: number, height: number, amount: number): void {
+	if (amount === 0) return;
+	const strength = amount / 100; // -1..1, negative = blur
+	const src = new Uint8ClampedArray(data);
+	for (let y = 0; y < height; y++) {
+		for (let x = 0; x < width; x++) {
+			const idx = (y * width + x) * 4;
+			for (let c = 0; c < 3; c++) {
+				let sum = 0, count = 0;
+				for (let dy = -1; dy <= 1; dy++) {
+					for (let dx = -1; dx <= 1; dx++) {
+						const ny = y + dy, nx = x + dx;
+						if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
+							sum += src[(ny * width + nx) * 4 + c];
+							count++;
+						}
+					}
+				}
+				const blurred = sum / count;
+				const diff = src[idx + c] - blurred;
+				data[idx + c] = Math.max(0, Math.min(255, src[idx + c] + strength * diff));
+			}
+		}
+	}
+}
+
+/** Apply warmth/temperature adjustment (-100..100) */
+function applyWarmth(data: Uint8ClampedArray, amount: number): void {
+	if (amount === 0) return;
+	const shift = (amount / 100) * 20;
+	for (let i = 0; i < data.length; i += 4) {
+		data[i] = Math.max(0, Math.min(255, data[i] + shift));
+		data[i + 2] = Math.max(0, Math.min(255, data[i + 2] - shift));
+	}
+}
+
+/** Apply saturation adjustment (-100..100) */
+function applySaturation(data: Uint8ClampedArray, amount: number): void {
+	if (amount === 0) return;
+	const factor = 1 + amount / 100;
+	for (let i = 0; i < data.length; i += 4) {
+		const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+		data[i] = Math.max(0, Math.min(255, lum + (data[i] - lum) * factor));
+		data[i + 1] = Math.max(0, Math.min(255, lum + (data[i + 1] - lum) * factor));
+		data[i + 2] = Math.max(0, Math.min(255, lum + (data[i + 2] - lum) * factor));
+	}
+}
+
+/** Apply highlights adjustment (-100..100) */
+function applyHighlights(data: Uint8ClampedArray, amount: number): void {
+	if (amount === 0) return;
+	const lift = (amount / 100) * 60;
+	for (let i = 0; i < data.length; i += 4) {
+		for (let c = 0; c < 3; c++) {
+			const v = data[i + c];
+			const highlightWeight = Math.max(0, (v - 128) / 127);
+			data[i + c] = Math.max(0, Math.min(255, v + lift * highlightWeight));
+		}
+	}
+}
+
+/** Apply vignette effect (0..100) */
+function applyVignette(data: Uint8ClampedArray, width: number, height: number, amount: number): void {
+	if (amount === 0) return;
+	const strength = amount / 100;
+	const cx = width / 2, cy = height / 2;
+	const maxDist = Math.sqrt(cx * cx + cy * cy);
+	for (let y = 0; y < height; y++) {
+		for (let x = 0; x < width; x++) {
+			const dx = x - cx, dy = y - cy;
+			const dist = Math.sqrt(dx * dx + dy * dy) / maxDist;
+			const falloff = 1 - strength * dist * dist;
+			const idx = (y * width + x) * 4;
+			data[idx] = Math.max(0, data[idx] * falloff);
+			data[idx + 1] = Math.max(0, data[idx + 1] * falloff);
+			data[idx + 2] = Math.max(0, data[idx + 2] * falloff);
+		}
+	}
+}
+
 function applySharpen(
 	source: ImageData,
 	canvas: HTMLCanvasElement,
@@ -497,6 +665,10 @@ export async function applyFilter(sourceBlob: Blob, filter: FilterType): Promise
 		else if (filter === 'document') applyDocument(imageData.data);
 		else if (filter === 'enhance') applyEnhance(imageData.data);
 		else if (filter === 'color') applyPhotoColor(imageData.data);
+		else if (filter === 'warm') applyWarmFilter(imageData.data);
+		else if (filter === 'cool') applyCoolFilter(imageData.data);
+		else if (filter === 'fade') applyFadeFilter(imageData.data);
+		else if (filter === 'vivid') applyVividFilter(imageData.data);
 		ctx.putImageData(imageData, 0, 0);
 	}
 
@@ -517,14 +689,137 @@ export async function generateThumbnail(sourceBlob: Blob, maxWidth = 120): Promi
 }
 
 /**
- * Full processing pipeline: crop → rotate → straighten → filter → generate display and thumbnail data URLs.
+ * Quick perspective crop for preview purposes — returns JPEG data URL.
+ */
+export async function perspectiveCorrectBlob(blob: Blob, quad: QuadCrop): Promise<string> {
+	const img = await loadImage(blob);
+	const canvas = document.createElement('canvas');
+	canvas.width = img.width;
+	canvas.height = img.height;
+	const ctx = getContext(canvas);
+	ctx.drawImage(img, 0, 0);
+	const cropped = perspectiveCorrect(canvas, quad, img.width, img.height);
+	return cropped.toDataURL('image/jpeg', 0.6);
+}
+
+/**
+ * Apply keystone (perspective H/V) correction.
+ * perspectiveH/V range: -50 to +50. Positive H tilts right edge inward, positive V tilts bottom inward.
+ */
+function applyKeystoneCorrection(
+	source: HTMLCanvasElement,
+	perspH: number,
+	perspV: number
+): HTMLCanvasElement {
+	const w = source.width;
+	const h = source.height;
+	// Convert -50..50 to a fractional inset (max 20% of dimension)
+	const hFrac = (perspH / 50) * 0.20;
+	const vFrac = (perspV / 50) * 0.20;
+
+	// Build source quad based on perspective params
+	const insetH = Math.abs(hFrac) * h;
+	const insetV = Math.abs(vFrac) * w;
+
+	let tl: Point, tr: Point, br: Point, bl: Point;
+
+	// Horizontal: positive → right side narrows
+	const tlY = hFrac > 0 ? 0 : -hFrac * h;
+	const trY = hFrac > 0 ? hFrac * h : 0;
+	const brY = hFrac > 0 ? h - hFrac * h : h;
+	const blY = hFrac > 0 ? h : h + hFrac * h;
+
+	// Vertical: positive → bottom narrows
+	const tlX = vFrac > 0 ? 0 : -vFrac * w;
+	const trX = vFrac > 0 ? w : w + vFrac * w;
+	const brX = vFrac > 0 ? w - vFrac * w : w;
+	const blX = vFrac > 0 ? vFrac * w : 0;
+
+	tl = { x: tlX, y: tlY };
+	tr = { x: trX, y: trY };
+	br = { x: brX, y: brY };
+	bl = { x: blX, y: blY };
+
+	const srcPts: [Point, Point, Point, Point] = [tl, tr, br, bl];
+	const dstPts: [Point, Point, Point, Point] = [
+		{ x: 0, y: 0 },
+		{ x: w, y: 0 },
+		{ x: w, y: h },
+		{ x: 0, y: h }
+	];
+
+	const coeffs = solveProjectiveTransform(dstPts, srcPts);
+	const srcCtx = source.getContext('2d');
+	if (!srcCtx) return source;
+	const srcData = srcCtx.getImageData(0, 0, w, h);
+
+	const out = document.createElement('canvas');
+	out.width = w;
+	out.height = h;
+	const outCtx = out.getContext('2d');
+	if (!outCtx) return source;
+	const outData = outCtx.createImageData(w, h);
+
+	const [a, b, c, d, e, f, g, hh] = coeffs;
+	for (let dy = 0; dy < h; dy++) {
+		for (let dx = 0; dx < w; dx++) {
+			const denom = g * dx + hh * dy + 1;
+			const sx = (a * dx + b * dy + c) / denom;
+			const sy = (d * dx + e * dy + f) / denom;
+			const ix = Math.round(sx);
+			const iy = Math.round(sy);
+			if (ix >= 0 && ix < w && iy >= 0 && iy < h) {
+				const si = (iy * w + ix) * 4;
+				const di = (dy * w + dx) * 4;
+				outData.data[di]     = srcData.data[si];
+				outData.data[di + 1] = srcData.data[si + 1];
+				outData.data[di + 2] = srcData.data[si + 2];
+				outData.data[di + 3] = srcData.data[si + 3];
+			}
+		}
+	}
+	outCtx.putImageData(outData, 0, 0);
+	return out;
+}
+
+/** Apply brightness (-100..100), contrast (-100..100), and shadows (-100..100) adjustments */
+function applyBrightnessContrastShadows(data: Uint8ClampedArray, brightness: number, contrast: number, shadows: number): void {
+	// Brightness: simple offset (-255..255)
+	const bOff = (brightness / 100) * 100;
+	// Contrast: scale factor — maps -100..100 to ~0.5..2.0
+	const cFactor = contrast >= 0
+		? 1 + (contrast / 100) * 1.0
+		: 1 + (contrast / 100) * 0.5;
+	// Shadows: lift dark pixels — maps -100..100 to shadow adjustment
+	const sLift = (shadows / 100) * 80;
+
+	for (let i = 0; i < data.length; i += 4) {
+		for (let c = 0; c < 3; c++) {
+			let v = data[i + c];
+			// Contrast (around midpoint 128)
+			v = ((v - 128) * cFactor) + 128;
+			// Brightness
+			v += bOff;
+			// Shadows: lift only dark areas (below ~128)
+			if (sLift !== 0) {
+				const shadowWeight = Math.max(0, 1 - v / 128);
+				v += sLift * shadowWeight;
+			}
+			data[i + c] = Math.max(0, Math.min(255, v));
+		}
+	}
+}
+
+/**
+ * Full processing pipeline: crop → perspective → flip → rotate → straighten → filter → adjustments → generate display and thumbnail data URLs.
  */
 export async function processPage(
 	blob: Blob,
 	filter: FilterType,
 	rotation: number,
 	crop: QuadCrop | null,
-	straighten = 0
+	straighten = 0,
+	adjustments: ImageAdjustments = DEFAULT_ADJUSTMENTS
 ): Promise<{ dataUrl: string; thumbnail: string }> {
 	const img = await loadImage(blob);
 
@@ -543,6 +838,28 @@ export async function processPage(
 		croppedCanvas.height = img.height;
 		const tmpCtx = getContext(croppedCanvas);
 		tmpCtx.drawImage(img, 0, 0);
+	}
+
+	// --- Step 1b: Perspective H/V keystone correction ---
+	if (adjustments.perspectiveH !== 0 || adjustments.perspectiveV !== 0) {
+		croppedCanvas = applyKeystoneCorrection(croppedCanvas, adjustments.perspectiveH, adjustments.perspectiveV);
+	}
+
+	// --- Step 1c: Flip H/V ---
+	if (adjustments.flipH || adjustments.flipV) {
+		const fCanvas = document.createElement('canvas');
+		fCanvas.width = croppedCanvas.width;
+		fCanvas.height = croppedCanvas.height;
+		const fCtx = getContext(fCanvas);
+		fCtx.save();
+		fCtx.translate(
+			adjustments.flipH ? croppedCanvas.width : 0,
+			adjustments.flipV ? croppedCanvas.height : 0
+		);
+		fCtx.scale(adjustments.flipH ? -1 : 1, adjustments.flipV ? -1 : 1);
+		fCtx.drawImage(croppedCanvas, 0, 0);
+		fCtx.restore();
+		croppedCanvas = fCanvas;
 	}
 
 	const cW = croppedCanvas.width;
@@ -594,6 +911,11 @@ export async function processPage(
 
 	// --- Step 3: Filter ---
 	if (filter !== 'original') {
+		// Save original pixels for intensity blending
+		const origData = (adjustments.filterIntensity < 100)
+			? ctx.getImageData(0, 0, canvas.width, canvas.height)
+			: null;
+
 		const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
 		if (filter === 'sharpen') {
@@ -604,8 +926,68 @@ export async function processPage(
 			else if (filter === 'document') applyDocument(imageData.data);
 			else if (filter === 'enhance') applyEnhance(imageData.data);
 			else if (filter === 'color') applyPhotoColor(imageData.data);
+			else if (filter === 'warm') applyWarmFilter(imageData.data);
+			else if (filter === 'cool') applyCoolFilter(imageData.data);
+			else if (filter === 'fade') applyFadeFilter(imageData.data);
+			else if (filter === 'vivid') applyVividFilter(imageData.data);
 			ctx.putImageData(imageData, 0, 0);
 		}
+
+		// --- Step 3b: Filter intensity blending ---
+		if (origData && adjustments.filterIntensity < 100) {
+			const filteredData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+			const t = adjustments.filterIntensity / 100;
+			const src = origData.data;
+			const dst = filteredData.data;
+			for (let i = 0; i < dst.length; i += 4) {
+				dst[i]     = src[i]     + (dst[i]     - src[i])     * t;
+				dst[i + 1] = src[i + 1] + (dst[i + 1] - src[i + 1]) * t;
+				dst[i + 2] = src[i + 2] + (dst[i + 2] - src[i + 2]) * t;
+			}
+			ctx.putImageData(filteredData, 0, 0);
+		}
+	}
+
+	// --- Step 3c: Brightness / Contrast / Shadows ---
+	if (adjustments.brightness !== 0 || adjustments.contrast !== 0 || adjustments.shadows !== 0) {
+		const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+		applyBrightnessContrastShadows(imgData.data, adjustments.brightness, adjustments.contrast, adjustments.shadows);
+		ctx.putImageData(imgData, 0, 0);
+	}
+
+	// --- Step 3d: Sharpness ---
+	if (adjustments.sharpness !== 0) {
+		const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+		applySharpness(imgData.data, canvas.width, canvas.height, adjustments.sharpness);
+		ctx.putImageData(imgData, 0, 0);
+	}
+
+	// --- Step 3e: Warmth ---
+	if (adjustments.warmth !== 0) {
+		const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+		applyWarmth(imgData.data, adjustments.warmth);
+		ctx.putImageData(imgData, 0, 0);
+	}
+
+	// --- Step 3f: Saturation ---
+	if (adjustments.saturation !== 0) {
+		const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+		applySaturation(imgData.data, adjustments.saturation);
+		ctx.putImageData(imgData, 0, 0);
+	}
+
+	// --- Step 3g: Highlights ---
+	if (adjustments.highlights !== 0) {
+		const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+		applyHighlights(imgData.data, adjustments.highlights);
+		ctx.putImageData(imgData, 0, 0);
+	}
+
+	// --- Step 3h: Vignette ---
+	if (adjustments.vignette !== 0) {
+		const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+		applyVignette(imgData.data, canvas.width, canvas.height, adjustments.vignette);
+		ctx.putImageData(imgData, 0, 0);
 	}
 
 	const dataUrl = canvas.toDataURL('image/jpeg', 0.92);

@@ -16,7 +16,7 @@ export interface QuadCrop {
 export type CropRect = QuadCrop;
 
 /** Available image filter types */
-export type FilterType = 'original' | 'enhance' | 'document' | 'bw' | 'grayscale' | 'sharpen' | 'color';
+export type FilterType = 'original' | 'enhance' | 'document' | 'bw' | 'grayscale' | 'sharpen' | 'color' | 'warm' | 'cool' | 'fade' | 'vivid';
 
 /** Scanner workflow view states */
 export type ScannerView = 'idle' | 'camera' | 'preview' | 'gallery';
@@ -31,6 +31,36 @@ export interface ScannedPage {
 	rotation: number;
 	straighten: number;
 	cropRect: QuadCrop | null;
+	flipH: boolean;
+	flipV: boolean;
+	perspectiveH: number;
+	perspectiveV: number;
+	brightness: number;
+	contrast: number;
+	shadows: number;
+	filterIntensity: number;
+	sharpness: number;
+	warmth: number;
+	saturation: number;
+	highlights: number;
+	vignette: number;
+}
+
+/** Image adjustment options passed through the pipeline */
+export interface ImageAdjustments {
+	flipH: boolean;
+	flipV: boolean;
+	perspectiveH: number;
+	perspectiveV: number;
+	brightness: number;
+	contrast: number;
+	shadows: number;
+	filterIntensity: number;
+	sharpness: number;
+	warmth: number;
+	saturation: number;
+	highlights: number;
+	vignette: number;
 }
 
 /** Max pages per scanning session */
@@ -44,6 +74,19 @@ interface ScannerStore {
 	currentRotation: number;
 	currentStraighten: number;
 	currentCrop: QuadCrop | null;
+	currentFlipH: boolean;
+	currentFlipV: boolean;
+	currentPerspectiveH: number;
+	currentPerspectiveV: number;
+	currentBrightness: number;
+	currentContrast: number;
+	currentShadows: number;
+	filterIntensity: number;
+	currentSharpness: number;
+	currentWarmth: number;
+	currentSaturation: number;
+	currentHighlights: number;
+	currentVignette: number;
 	editingPageId: string | null;
 	isProcessing: boolean;
 	cameraFacing: 'user' | 'environment';
@@ -54,6 +97,19 @@ interface ScannerStore {
 	setRotation: (degrees: number) => void;
 	setStraighten: (degrees: number) => void;
 	setCrop: (rect: QuadCrop | null) => void;
+	setFlipH: (v: boolean) => void;
+	setFlipV: (v: boolean) => void;
+	setPerspectiveH: (v: number) => void;
+	setPerspectiveV: (v: number) => void;
+	setBrightness: (v: number) => void;
+	setContrast: (v: number) => void;
+	setShadows: (v: number) => void;
+	setFilterIntensity: (v: number) => void;
+	setSharpness: (v: number) => void;
+	setWarmth: (v: number) => void;
+	setSaturation: (v: number) => void;
+	setHighlights: (v: number) => void;
+	setVignette: (v: number) => void;
 	setProcessing: (value: boolean) => void;
 	setCameraFacing: (facing: 'user' | 'environment') => void;
 	addPage: (page: ScannedPage) => boolean;
@@ -72,6 +128,19 @@ const initialPreview = {
 	currentRotation: 0,
 	currentStraighten: 0,
 	currentCrop: null as QuadCrop | null,
+	currentFlipH: false,
+	currentFlipV: false,
+	currentPerspectiveH: 0,
+	currentPerspectiveV: 0,
+	currentBrightness: 0,
+	currentContrast: 0,
+	currentShadows: 0,
+	filterIntensity: 100,
+	currentSharpness: 0,
+	currentWarmth: 0,
+	currentSaturation: 0,
+	currentHighlights: 0,
+	currentVignette: 0,
 	editingPageId: null as string | null,
 	isProcessing: false
 };
@@ -91,6 +160,19 @@ export const useScannerStore = create<ScannerStore>((set, get) => ({
 			currentRotation: 0,
 			currentStraighten: 0,
 			currentCrop: null,
+			currentFlipH: false,
+			currentFlipV: false,
+			currentPerspectiveH: 0,
+			currentPerspectiveV: 0,
+			currentBrightness: 0,
+			currentContrast: 0,
+			currentShadows: 0,
+			filterIntensity: 100,
+			currentSharpness: 0,
+			currentWarmth: 0,
+			currentSaturation: 0,
+			currentHighlights: 0,
+			currentVignette: 0,
 			editingPageId: null,
 			view: 'preview'
 		}),
@@ -103,6 +185,20 @@ export const useScannerStore = create<ScannerStore>((set, get) => ({
 		set({ currentStraighten: Math.max(-15, Math.min(15, degrees)) }),
 
 	setCrop: (rect) => set({ currentCrop: rect }),
+
+	setFlipH: (v) => set({ currentFlipH: v }),
+	setFlipV: (v) => set({ currentFlipV: v }),
+	setPerspectiveH: (v) => set({ currentPerspectiveH: Math.max(-50, Math.min(50, v)) }),
+	setPerspectiveV: (v) => set({ currentPerspectiveV: Math.max(-50, Math.min(50, v)) }),
+	setBrightness: (v) => set({ currentBrightness: Math.max(-100, Math.min(100, v)) }),
+	setContrast: (v) => set({ currentContrast: Math.max(-100, Math.min(100, v)) }),
+	setShadows: (v) => set({ currentShadows: Math.max(-100, Math.min(100, v)) }),
+	setFilterIntensity: (v) => set({ filterIntensity: Math.max(0, Math.min(100, v)) }),
+	setSharpness: (v) => set({ currentSharpness: Math.max(-100, Math.min(100, v)) }),
+	setWarmth: (v) => set({ currentWarmth: Math.max(-100, Math.min(100, v)) }),
+	setSaturation: (v) => set({ currentSaturation: Math.max(-100, Math.min(100, v)) }),
+	setHighlights: (v) => set({ currentHighlights: Math.max(-100, Math.min(100, v)) }),
+	setVignette: (v) => set({ currentVignette: Math.max(0, Math.min(100, v)) }),
 
 	setProcessing: (value) => set({ isProcessing: value }),
 
@@ -136,6 +232,19 @@ export const useScannerStore = create<ScannerStore>((set, get) => ({
 			currentRotation: page.rotation,
 			currentStraighten: page.straighten,
 			currentCrop: page.cropRect,
+			currentFlipH: page.flipH,
+			currentFlipV: page.flipV,
+			currentPerspectiveH: page.perspectiveH,
+			currentPerspectiveV: page.perspectiveV,
+			currentBrightness: page.brightness,
+			currentContrast: page.contrast,
+			currentShadows: page.shadows,
+			filterIntensity: page.filterIntensity,
+			currentSharpness: page.sharpness,
+			currentWarmth: page.warmth,
+			currentSaturation: page.saturation,
+			currentHighlights: page.highlights,
+			currentVignette: page.vignette,
 			editingPageId: id,
 			view: 'preview'
 		});
@@ -153,7 +262,20 @@ export const useScannerStore = create<ScannerStore>((set, get) => ({
 			filter: state.currentFilter,
 			rotation: state.currentRotation,
 			straighten: state.currentStraighten,
-			cropRect: state.currentCrop
+			cropRect: state.currentCrop,
+			flipH: state.currentFlipH,
+			flipV: state.currentFlipV,
+			perspectiveH: state.currentPerspectiveH,
+			perspectiveV: state.currentPerspectiveV,
+			brightness: state.currentBrightness,
+			contrast: state.currentContrast,
+			shadows: state.currentShadows,
+			filterIntensity: state.filterIntensity,
+			sharpness: state.currentSharpness,
+			warmth: state.currentWarmth,
+			saturation: state.currentSaturation,
+			highlights: state.currentHighlights,
+			vignette: state.currentVignette
 		};
 
 		if (state.editingPageId) {

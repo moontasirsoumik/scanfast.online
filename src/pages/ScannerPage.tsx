@@ -1,8 +1,8 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Loading, Tag } from '@carbon/react';
-import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowLeft, ArrowRight, Download, ChevronLeft, ChevronRight, Close } from '@carbon/icons-react';
-import { useScannerStore, MAX_PAGES, type QuadCrop, type FilterType, type ScannedPage } from '@/stores/scanner';
+import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowLeft, ArrowRight, Download, ChevronLeft, ChevronRight, Close, SettingsAdjust } from '@carbon/icons-react';
+import { useScannerStore, MAX_PAGES, type QuadCrop, type FilterType, type ScannedPage, type ImageAdjustments } from '@/stores/scanner';
 import { useManipulatorStore } from '@/stores/manipulator';
 import { addToast } from '@/stores/toast';
 import { processPage, readExifOrientation, exifOrientationToDegrees, downscaleBlob } from '@/services/filters';
@@ -11,7 +11,7 @@ import { downloadBlob, loadFiles } from '@/services/pdf';
 import CameraView from '@/components/scanner/CameraView';
 import CropEditor from '@/components/scanner/CropEditor';
 import FilterBar from '@/components/scanner/FilterBar';
-import RotationControls from '@/components/scanner/RotationControls';
+import AdjustmentBar from '@/components/scanner/AdjustmentBar';
 import PageGallery from '@/components/scanner/PageGallery';
 import ActionSheet from '@/components/shared/ActionSheet';
 import useIsMobile from '@/hooks/useIsMobile';
@@ -60,6 +60,49 @@ export default function ScannerPage() {
   const removePage = useScannerStore((s) => s.removePage);
   const resetPreview = useScannerStore((s) => s.resetPreview);
   const addPages = useScannerStore((s) => s.addPages);
+  const currentFlipH = useScannerStore((s) => s.currentFlipH);
+  const currentFlipV = useScannerStore((s) => s.currentFlipV);
+  const currentPerspectiveH = useScannerStore((s) => s.currentPerspectiveH);
+  const currentPerspectiveV = useScannerStore((s) => s.currentPerspectiveV);
+  const currentBrightness = useScannerStore((s) => s.currentBrightness);
+  const currentContrast = useScannerStore((s) => s.currentContrast);
+  const currentShadows = useScannerStore((s) => s.currentShadows);
+  const filterIntensity = useScannerStore((s) => s.filterIntensity);
+  const currentSharpness = useScannerStore((s) => s.currentSharpness);
+  const currentWarmth = useScannerStore((s) => s.currentWarmth);
+  const currentSaturation = useScannerStore((s) => s.currentSaturation);
+  const currentHighlights = useScannerStore((s) => s.currentHighlights);
+  const currentVignette = useScannerStore((s) => s.currentVignette);
+  const setFlipH = useScannerStore((s) => s.setFlipH);
+  const setFlipV = useScannerStore((s) => s.setFlipV);
+  const setPerspectiveH = useScannerStore((s) => s.setPerspectiveH);
+  const setPerspectiveV = useScannerStore((s) => s.setPerspectiveV);
+  const setBrightness = useScannerStore((s) => s.setBrightness);
+  const setContrast = useScannerStore((s) => s.setContrast);
+  const setShadows = useScannerStore((s) => s.setShadows);
+  const setFilterIntensity = useScannerStore((s) => s.setFilterIntensity);
+  const setSharpness = useScannerStore((s) => s.setSharpness);
+  const setWarmth = useScannerStore((s) => s.setWarmth);
+  const setSaturation = useScannerStore((s) => s.setSaturation);
+  const setHighlights = useScannerStore((s) => s.setHighlights);
+  const setVignette = useScannerStore((s) => s.setVignette);
+
+  /** Build the current ImageAdjustments object */
+  const currentAdjustments: ImageAdjustments = {
+    flipH: currentFlipH,
+    flipV: currentFlipV,
+    perspectiveH: currentPerspectiveH,
+    perspectiveV: currentPerspectiveV,
+    brightness: currentBrightness,
+    contrast: currentContrast,
+    shadows: currentShadows,
+    filterIntensity,
+    sharpness: currentSharpness,
+    warmth: currentWarmth,
+    saturation: currentSaturation,
+    highlights: currentHighlights,
+    vignette: currentVignette,
+  };
 
   useEffect(() => {
     document.title = 'Scanner — ScanFastOnline';
@@ -73,7 +116,7 @@ export default function ScannerPage() {
     }
     let cancelled = false;
     setProcessing(true);
-    processPage(currentImage, currentFilter, currentRotation, currentCrop, currentStraighten)
+    processPage(currentImage, currentFilter, currentRotation, currentCrop, currentStraighten, currentAdjustments)
       .then((result) => {
         if (!cancelled) {
           setPreviewUrl(result.dataUrl);
@@ -93,9 +136,9 @@ export default function ScannerPage() {
         }
       });
     return () => { cancelled = true; };
-  }, [currentImage, currentFilter, currentRotation, currentCrop, currentStraighten, setProcessing]);
+  }, [currentImage, currentFilter, currentRotation, currentCrop, currentStraighten, currentFlipH, currentFlipV, currentPerspectiveH, currentPerspectiveV, currentBrightness, currentContrast, currentShadows, filterIntensity, currentSharpness, currentWarmth, currentSaturation, currentHighlights, currentVignette, setProcessing]);
 
-  // Generate crop-base image (filter + rotation + straighten, but NO crop)
+  // Generate crop-base image (filter + rotation + straighten + flip/perspective, but NO crop)
   // so CropEditor shows the image with all current effects applied
   useEffect(() => {
     if (!currentImage) {
@@ -103,7 +146,8 @@ export default function ScannerPage() {
       return;
     }
     let cancelled = false;
-    processPage(currentImage, currentFilter, currentRotation, null, currentStraighten)
+    const adj = { ...currentAdjustments };
+    processPage(currentImage, currentFilter, currentRotation, null, currentStraighten, adj)
       .then((result) => {
         if (!cancelled) setCropBaseUrl(result.dataUrl);
       })
@@ -113,7 +157,7 @@ export default function ScannerPage() {
         }
       });
     return () => { cancelled = true; };
-  }, [currentImage, currentFilter, currentRotation, currentStraighten]);
+  }, [currentImage, currentFilter, currentRotation, currentStraighten, currentFlipH, currentFlipV, currentPerspectiveH, currentPerspectiveV]);
 
   useEffect(() => {
     setDraftCrop(currentCrop);
@@ -132,10 +176,12 @@ export default function ScannerPage() {
       const orientation = await readExifOrientation(scaled);
       const degrees = exifOrientationToDegrees(orientation);
 
-      // Use live-detected quad, or run high-quality detection on the captured image
-      let cropQuad = detectedQuad ?? null;
-      if (!cropQuad) {
-        cropQuad = await detectDocumentFromBlob(scaled);
+      // Run full-resolution detection when auto-crop is active.
+      // detectedQuad === null means user had auto-crop off; undefined means gallery import.
+      let cropQuad: QuadCrop | null = null;
+      if (detectedQuad !== null) {
+        const detectedFromCapture = await detectDocumentFromBlob(scaled);
+        cropQuad = detectedFromCapture ?? detectedQuad ?? null;
       }
 
       const result = await processPage(scaled, 'original', degrees, cropQuad, 0);
@@ -147,7 +193,20 @@ export default function ScannerPage() {
         filter: 'original',
         rotation: degrees,
         straighten: 0,
-        cropRect: cropQuad
+        cropRect: cropQuad,
+        flipH: false,
+        flipV: false,
+        perspectiveH: 0,
+        perspectiveV: 0,
+        brightness: 0,
+        contrast: 0,
+        shadows: 0,
+        filterIntensity: 100,
+        sharpness: 0,
+        warmth: 0,
+        saturation: 0,
+        highlights: 0,
+        vignette: 0
       };
       const added = useScannerStore.getState().addPage(page);
       if (added) {
@@ -181,11 +240,7 @@ export default function ScannerPage() {
       if (degrees !== 0) {
         setRotation(degrees);
       }
-      // Run document detection for initial crop suggestion
-      const detectedQuad = await detectDocumentFromBlob(scaled);
-      if (detectedQuad) {
-        useScannerStore.getState().setCrop(detectedQuad);
-      }
+      // Don't auto-crop on import — user can use the crop editor's auto-crop button
       return;
     }
 
@@ -211,7 +266,20 @@ export default function ScannerPage() {
           filter: 'original',
           rotation: degrees,
           straighten: 0,
-          cropRect: cropQuad
+          cropRect: cropQuad,
+          flipH: false,
+          flipV: false,
+          perspectiveH: 0,
+          perspectiveV: 0,
+          brightness: 0,
+          contrast: 0,
+          shadows: 0,
+          filterIntensity: 100,
+          sharpness: 0,
+          warmth: 0,
+          saturation: 0,
+          highlights: 0,
+          vignette: 0
         });
       }
 
@@ -240,12 +308,28 @@ export default function ScannerPage() {
     }
     setProcessing(true);
     try {
+      const adj: ImageAdjustments = {
+        flipH: state.currentFlipH,
+        flipV: state.currentFlipV,
+        perspectiveH: state.currentPerspectiveH,
+        perspectiveV: state.currentPerspectiveV,
+        brightness: state.currentBrightness,
+        contrast: state.currentContrast,
+        shadows: state.currentShadows,
+        filterIntensity: state.filterIntensity,
+        sharpness: state.currentSharpness,
+        warmth: state.currentWarmth,
+        saturation: state.currentSaturation,
+        highlights: state.currentHighlights,
+        vignette: state.currentVignette,
+      };
       const result = await processPage(
         state.currentImage,
         state.currentFilter,
         state.currentRotation,
         state.currentCrop,
-        state.currentStraighten
+        state.currentStraighten,
+        adj
       );
       savePage(result.dataUrl, result.thumbnail);
       setCropMode(false);
@@ -272,9 +356,16 @@ export default function ScannerPage() {
   }, [handlePreviewClose]);
 
   const handleToggleCrop = useCallback(() => {
-    setDraftCrop(currentCrop);
-    setCropMode((prev) => !prev);
-  }, [currentCrop]);
+    if (cropMode) {
+      // Leaving crop mode → auto-confirm the crop
+      setCrop(draftCrop);
+      setCropMode(false);
+    } else {
+      // Entering crop mode
+      setDraftCrop(currentCrop);
+      setCropMode(true);
+    }
+  }, [cropMode, currentCrop, draftCrop, setCrop]);
 
   const handleCropConfirm = useCallback(() => {
     setCrop(draftCrop);
@@ -285,6 +376,45 @@ export default function ScannerPage() {
     setDraftCrop(currentCrop);
     setCropMode(false);
   }, [currentCrop]);
+
+  /** Rotate crop quad to match new image rotation */
+  const handleRotate = useCallback((newDeg: number) => {
+    const oldDeg = useScannerStore.getState().currentRotation;
+    const crop = useScannerStore.getState().currentCrop;
+    setRotation(newDeg);
+
+    if (!crop) return;
+
+    const delta = ((newDeg - oldDeg) % 360 + 360) % 360;
+    if (delta === 0) return;
+
+    const rotatePt = (p: { x: number; y: number }, steps: number) => {
+      let { x, y } = p;
+      for (let i = 0; i < steps; i++) {
+        const nx = 1 - y;
+        const ny = x;
+        x = nx;
+        y = ny;
+      }
+      return { x, y };
+    };
+
+    const steps = delta === 90 ? 1 : delta === 180 ? 2 : delta === 270 ? 3 : 0;
+    if (steps === 0) return;
+
+    const transformQuad = (q: QuadCrop): QuadCrop => ({
+      tl: rotatePt(q.tl, steps),
+      tr: rotatePt(q.tr, steps),
+      br: rotatePt(q.br, steps),
+      bl: rotatePt(q.bl, steps),
+    });
+
+    const newCrop = transformQuad(crop);
+    setCrop(newCrop);
+
+    // Also transform draftCrop so unconfirmed edits follow the rotation
+    setDraftCrop((prev) => prev ? transformQuad(prev) : prev);
+  }, [setRotation, setCrop]);
 
   const handleEditPage = useCallback((id: string) => {
     setPreviewScale(1.0);
@@ -442,12 +572,28 @@ export default function ScannerPage() {
     setProcessing(true);
 
     try {
+      const adj: ImageAdjustments = {
+        flipH: state.currentFlipH,
+        flipV: state.currentFlipV,
+        perspectiveH: state.currentPerspectiveH,
+        perspectiveV: state.currentPerspectiveV,
+        brightness: state.currentBrightness,
+        contrast: state.currentContrast,
+        shadows: state.currentShadows,
+        filterIntensity: state.filterIntensity,
+        sharpness: state.currentSharpness,
+        warmth: state.currentWarmth,
+        saturation: state.currentSaturation,
+        highlights: state.currentHighlights,
+        vignette: state.currentVignette,
+      };
       const result = await processPage(
         state.currentImage,
         state.currentFilter,
         state.currentRotation,
         state.currentCrop,
-        state.currentStraighten
+        state.currentStraighten,
+        adj
       );
 
       useScannerStore.setState((currentState) => ({
@@ -461,7 +607,20 @@ export default function ScannerPage() {
                 filter: state.currentFilter,
                 rotation: state.currentRotation,
                 straighten: state.currentStraighten,
-                cropRect: state.currentCrop
+                cropRect: state.currentCrop,
+                flipH: state.currentFlipH,
+                flipV: state.currentFlipV,
+                perspectiveH: state.currentPerspectiveH,
+                perspectiveV: state.currentPerspectiveV,
+                brightness: state.currentBrightness,
+                contrast: state.currentContrast,
+                shadows: state.currentShadows,
+                filterIntensity: state.filterIntensity,
+                sharpness: state.currentSharpness,
+                warmth: state.currentWarmth,
+                saturation: state.currentSaturation,
+                highlights: state.currentHighlights,
+                vignette: state.currentVignette
               }
             : page
         ))
@@ -672,6 +831,18 @@ export default function ScannerPage() {
                 <CropEditor
                   imageUrl={cropBaseUrl}
                   initialCrop={draftCrop}
+                  rotation={currentRotation}
+                  straighten={currentStraighten}
+                  flipH={currentFlipH}
+                  flipV={currentFlipV}
+                  perspectiveH={currentPerspectiveH}
+                  perspectiveV={currentPerspectiveV}
+                  onRotate={handleRotate}
+                  onStraightenChange={(v: number) => setStraighten(v)}
+                  onFlipH={() => setFlipH(!currentFlipH)}
+                  onFlipV={() => setFlipV(!currentFlipV)}
+                  onPerspectiveHChange={(v: number) => setPerspectiveH(v)}
+                  onPerspectiveVChange={(v: number) => setPerspectiveV(v)}
                   onChange={(crop: QuadCrop) => setDraftCrop(crop)}
                   onConfirm={handleCropConfirm}
                   onCancel={handleCropCancel}
@@ -680,12 +851,28 @@ export default function ScannerPage() {
             )}
           </div>
 
+          {!cropMode && (
           <div className="preview-bottom-panel">
-            <RotationControls
-              rotation={currentRotation}
-              straighten={currentStraighten}
-              onRotate={(deg: number) => setRotation(deg)}
-              onStraighten={(deg: number) => setStraighten(deg)}
+            <AdjustmentBar
+              activeFilter={currentFilter}
+              filterIntensity={filterIntensity}
+              brightness={currentBrightness}
+              contrast={currentContrast}
+              shadows={currentShadows}
+              sharpness={currentSharpness}
+              warmth={currentWarmth}
+              saturation={currentSaturation}
+              highlights={currentHighlights}
+              vignette={currentVignette}
+              onFilterIntensityChange={setFilterIntensity}
+              onBrightnessChange={setBrightness}
+              onContrastChange={setContrast}
+              onShadowsChange={setShadows}
+              onSharpnessChange={setSharpness}
+              onWarmthChange={setWarmth}
+              onSaturationChange={setSaturation}
+              onHighlightsChange={setHighlights}
+              onVignetteChange={setVignette}
             />
 
             {currentImage && (
@@ -695,6 +882,8 @@ export default function ScannerPage() {
                 onSelect={(f: FilterType) => setFilter(f)}
               />
             )}
+          </div>
+          )}
 
             <div className="preview-actions">
               <Button
@@ -711,13 +900,13 @@ export default function ScannerPage() {
               <Button
                 kind="ghost"
                 size="sm"
-                renderIcon={Crop}
-                iconDescription={cropMode ? 'Cancel crop' : 'Adjust corners'}
-                aria-label={cropMode ? 'Cancel crop' : 'Adjust corners'}
+                renderIcon={cropMode ? SettingsAdjust : Crop}
+                iconDescription={cropMode ? 'Filters' : 'Crop'}
+                aria-label={cropMode ? 'Filters' : 'Crop'}
                 hasIconOnly={isMobile}
                 onClick={handleToggleCrop}
               >
-                {!isMobile ? (cropMode ? 'Cancel' : 'Adjust Corners') : null}
+                {!isMobile ? (cropMode ? 'Filters' : 'Crop') : null}
               </Button>
               <Button
                 kind="primary"
@@ -732,7 +921,6 @@ export default function ScannerPage() {
                 {!isMobile ? 'Next' : null}
               </Button>
             </div>
-          </div>
         </div>
       )}
 
