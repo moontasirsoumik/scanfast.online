@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Loading, Tag } from '@carbon/react';
-import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowLeft, ArrowRight, Download, ChevronLeft, ChevronRight, Close, SettingsAdjust } from '@carbon/icons-react';
+import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowLeft, ArrowRight, Download, ChevronLeft, ChevronRight, Close, SettingsAdjust, Undo, Redo, Reset } from '@carbon/icons-react';
 import { useScannerStore, MAX_PAGES, type QuadCrop, type FilterType, type ScannedPage, type ImageAdjustments } from '@/stores/scanner';
 import { useManipulatorStore } from '@/stores/manipulator';
 import { addToast } from '@/stores/toast';
@@ -15,6 +15,7 @@ import AdjustmentBar from '@/components/scanner/AdjustmentBar';
 import PageGallery from '@/components/scanner/PageGallery';
 import ActionSheet from '@/components/shared/ActionSheet';
 import useIsMobile from '@/hooks/useIsMobile';
+import { useScannerEditHistory } from '@/hooks/useScannerEditHistory';
 import './ScannerPage.css';
 
 function clampPreviewScale(scale: number): number {
@@ -25,11 +26,13 @@ function clampPreviewScale(scale: number): number {
 export default function ScannerPage() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const { filter: filterHistory, crop: cropHistory } = useScannerEditHistory();
   const [previewUrl, setPreviewUrl] = useState('');
   const [cropMode, setCropMode] = useState(false);
   const [draftCrop, setDraftCrop] = useState<QuadCrop | null>(null);
   const [cropBaseUrl, setCropBaseUrl] = useState('');
   const [previewScale, setPreviewScale] = useState(1.0);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   const [transition, setTransition] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -38,6 +41,8 @@ export default function ScannerPage() {
   const swipeRef = useRef<{ startX: number } | null>(null);
   const wasPinchRef = useRef(false);
   const pendingEnterRef = useRef('');
+  const panRef = useRef<{ startX: number; startY: number; startPanX: number; startPanY: number } | null>(null);
+  const mousePanRef = useRef<{ startX: number; startY: number; startPanX: number; startPanY: number } | null>(null);
 
   const view = useScannerStore((s) => s.view);
   const pages = useScannerStore((s) => s.pages);
@@ -344,6 +349,7 @@ export default function ScannerPage() {
     setCropMode(false);
     setDraftCrop(null);
     setPreviewScale(1.0);
+    setPanOffset({ x: 0, y: 0 });
     setTransition('');
     pendingEnterRef.current = '';
     resetPreview();
@@ -640,13 +646,14 @@ export default function ScannerPage() {
     setTimeout(() => {
       pendingEnterRef.current = enterClass;
       setPreviewScale(1.0);
+      setPanOffset({ x: 0, y: 0 });
       setCropMode(false);
       setDraftCrop(null);
       editPage(state.pages[nextIndex].id);
     }, 150);
   }, [editPage, setProcessing]);
 
-  // --- Preview pinch-to-zoom handlers ---
+  // --- Preview pinch-to-zoom + pan handlers ---
   const handlePreviewTouchStart = useCallback((e: React.TouchEvent) => {
     if (cropMode) return;
     if (e.touches.length === 2) {
@@ -663,12 +670,16 @@ export default function ScannerPage() {
       } else {
         lastTapRef.current = now;
       }
-      // Swipe tracking â€” skip during crop mode
-      if (!cropMode) {
+      // Pan when zoomed, swipe when not
+      if (previewScale > 1.02) {
+        panRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, startPanX: panOffset.x, startPanY: panOffset.y };
+        swipeRef.current = null;
+      } else if (!cropMode) {
         swipeRef.current = { startX: e.touches[0].clientX };
+        panRef.current = null;
       }
     }
-  }, [previewScale, cropMode]);
+  }, [previewScale, cropMode, panOffset]);
 
   const handlePreviewTouchMove = useCallback((e: React.TouchEvent) => {
     if (cropMode) return;
@@ -696,6 +707,7 @@ export default function ScannerPage() {
     }
     pinchRef.current = null;
     swipeRef.current = null;
+    panRef.current = null;
     wasPinchRef.current = false;
   }, [cropMode, navigatePreviewPage, previewScale]);
 
@@ -706,8 +718,30 @@ export default function ScannerPage() {
 
     e.preventDefault();
     const delta = e.deltaY < 0 ? 0.2 : -0.2;
-    setPreviewScale((current) => clampPreviewScale(current + delta));
+    setPreviewScale((current) => {
+      const next = clampPreviewScale(current + delta);
+      if (next <= 1) setPanOffset({ x: 0, y: 0 });
+      return next;
+    });
   }, [cropMode]);
+
+  // --- Mouse drag-to-pan ---
+  const handlePreviewMouseDown = useCallback((e: React.MouseEvent) => {
+    if (cropMode || previewScale <= 1.02) return;
+    e.preventDefault();
+    mousePanRef.current = { startX: e.clientX, startY: e.clientY, startPanX: panOffset.x, startPanY: panOffset.y };
+  }, [cropMode, previewScale, panOffset]);
+
+  const handlePreviewMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!mousePanRef.current) return;
+    const dx = e.clientX - mousePanRef.current.startX;
+    const dy = e.clientY - mousePanRef.current.startY;
+    setPanOffset({ x: mousePanRef.current.startPanX + dx, y: mousePanRef.current.startPanY + dy });
+  }, []);
+
+  const handlePreviewMouseUp = useCallback(() => {
+    mousePanRef.current = null;
+  }, []);
 
   useEffect(() => {
     if (view !== 'preview') {
@@ -719,6 +753,20 @@ export default function ScannerPage() {
         event.preventDefault();
         handlePreviewClose();
         return;
+      }
+
+      if ((event.ctrlKey || event.metaKey)) {
+        const h = cropMode ? cropHistory : filterHistory;
+        if (event.key === 'z' && !event.shiftKey) {
+          event.preventDefault();
+          h.undo();
+          return;
+        }
+        if ((event.key === 'z' && event.shiftKey) || event.key === 'y') {
+          event.preventDefault();
+          h.redo();
+          return;
+        }
       }
 
       if (cropMode || !editingPageId) {
@@ -736,7 +784,7 @@ export default function ScannerPage() {
 
     window.addEventListener('keydown', handlePreviewKeydown);
     return () => window.removeEventListener('keydown', handlePreviewKeydown);
-  }, [cropMode, editingPageId, handlePreviewClose, navigatePreviewPage, view]);
+  }, [cropMode, editingPageId, handlePreviewClose, navigatePreviewPage, view, filterHistory, cropHistory]);
 
   // --- Navigation hint visibility ---
   const currentIdx = editingPageId ? pages.findIndex((p) => p.id === editingPageId) : -1;
@@ -769,6 +817,10 @@ export default function ScannerPage() {
             onTouchMove={handlePreviewTouchMove}
             onTouchEnd={handlePreviewTouchEnd}
             onTouchCancel={handlePreviewTouchEnd}
+            onMouseDown={handlePreviewMouseDown}
+            onMouseMove={handlePreviewMouseMove}
+            onMouseUp={handlePreviewMouseUp}
+            onMouseLeave={handlePreviewMouseUp}
           >
             <div className="sf-preview-header">
               <div className="sf-preview-counter" aria-live="polite">{previewCounterLabel}</div>
@@ -803,7 +855,7 @@ export default function ScannerPage() {
                 src={previewUrl}
                 alt="Preview"
                 className={`preview-image${previewScale !== 1 ? ' zoomed' : ''}${transition ? ` ${transition}` : ''}`}
-                style={{ transform: `scale(${previewScale})` }}
+                style={{ transform: `scale(${previewScale}) translate(${panOffset.x / previewScale}px, ${panOffset.y / previewScale}px)` }}
               />
             )}
 
@@ -818,6 +870,44 @@ export default function ScannerPage() {
                 aria-label="Next page"
                 onClick={() => { void navigatePreviewPage('next'); }}
               />
+            )}
+
+            {!cropMode && (
+              <div className="sf-edit-history-controls">
+                <Button
+                  className="sf-edit-history-btn"
+                  kind="ghost"
+                  size="sm"
+                  hasIconOnly
+                  renderIcon={Undo}
+                  iconDescription="Undo"
+                  tooltipPosition="left"
+                  disabled={!filterHistory.canUndo}
+                  onClick={filterHistory.undo}
+                />
+                <Button
+                  className="sf-edit-history-btn"
+                  kind="ghost"
+                  size="sm"
+                  hasIconOnly
+                  renderIcon={Redo}
+                  iconDescription="Redo"
+                  tooltipPosition="left"
+                  disabled={!filterHistory.canRedo}
+                  onClick={filterHistory.redo}
+                />
+                <Button
+                  className="sf-edit-history-btn"
+                  kind="ghost"
+                  size="sm"
+                  hasIconOnly
+                  renderIcon={Reset}
+                  iconDescription="Reset all edits"
+                  tooltipPosition="left"
+                  disabled={!filterHistory.canReset}
+                  onClick={filterHistory.reset}
+                />
+              </div>
             )}
 
             {isProcessing && (
@@ -837,6 +927,12 @@ export default function ScannerPage() {
                   flipV={currentFlipV}
                   perspectiveH={currentPerspectiveH}
                   perspectiveV={currentPerspectiveV}
+                  canUndo={cropHistory.canUndo}
+                  canRedo={cropHistory.canRedo}
+                  canReset={cropHistory.canReset}
+                  onUndo={cropHistory.undo}
+                  onRedo={cropHistory.redo}
+                  onReset={cropHistory.reset}
                   onRotate={handleRotate}
                   onStraightenChange={(v: number) => setStraighten(v)}
                   onFlipH={() => setFlipH(!currentFlipH)}
@@ -885,6 +981,7 @@ export default function ScannerPage() {
           </div>
           )}
 
+            <div className="preview-actions-wrapper">
             <div className="preview-actions">
               <Button
                 kind="ghost"
@@ -920,6 +1017,7 @@ export default function ScannerPage() {
               >
                 {!isMobile ? 'Next' : null}
               </Button>
+            </div>
             </div>
         </div>
       )}

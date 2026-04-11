@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { Button } from '@carbon/react';
-import { Maximize, Minimize, Crop, ReflectHorizontal, ReflectVertical, Rotate, RotateCounterclockwise, RotateClockwise, WatsonHealthAngle } from '@carbon/icons-react';
+import { Maximize, Minimize, Crop, ReflectHorizontal, ReflectVertical, Rotate, RotateCounterclockwise, RotateClockwise, WatsonHealthAngle, Undo, Redo, Reset } from '@carbon/icons-react';
 import type { QuadCrop, Point } from '@/stores/scanner';
 import { detectDocumentFromBlob } from '@/services/documentDetection';
 import './CropEditor.css';
@@ -17,6 +17,12 @@ interface CropEditorProps {
   flipV: boolean;
   perspectiveH: number;
   perspectiveV: number;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  canReset?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  onReset?: () => void;
   onRotate: (degrees: number) => void;
   onStraightenChange: (v: number) => void;
   onFlipH: () => void;
@@ -43,7 +49,7 @@ function dist(ax: number, ay: number, bx: number, by: number): number {
 }
 
 /** Canvas-based 4-corner quadrilateral crop editor with pinch-to-zoom */
-export default function CropEditor({ imageUrl, initialCrop, rotation, straighten, flipH, flipV, perspectiveH, perspectiveV, onRotate, onStraightenChange, onFlipH, onFlipV, onPerspectiveHChange, onPerspectiveVChange, onChange, onConfirm, onCancel }: CropEditorProps) {
+export default function CropEditor({ imageUrl, initialCrop, rotation, straighten, flipH, flipV, perspectiveH, perspectiveV, canUndo, canRedo, canReset, onUndo, onRedo, onReset, onRotate, onStraightenChange, onFlipH, onFlipV, onPerspectiveHChange, onPerspectiveVChange, onChange, onConfirm, onCancel }: CropEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -511,6 +517,45 @@ export default function CropEditor({ imageUrl, initialCrop, rotation, straighten
           </div>
         )}
         <div className="crop-focus-controls">
+          {onUndo && (
+            <Button
+              className="crop-focus-toggle"
+              kind="ghost"
+              size="sm"
+              hasIconOnly
+              renderIcon={Undo}
+              iconDescription="Undo"
+              tooltipPosition="left"
+              disabled={!canUndo}
+              onClick={onUndo}
+            />
+          )}
+          {onRedo && (
+            <Button
+              className="crop-focus-toggle"
+              kind="ghost"
+              size="sm"
+              hasIconOnly
+              renderIcon={Redo}
+              iconDescription="Redo"
+              tooltipPosition="left"
+              disabled={!canRedo}
+              onClick={onRedo}
+            />
+          )}
+          {onReset && (
+            <Button
+              className="crop-focus-toggle"
+              kind="ghost"
+              size="sm"
+              hasIconOnly
+              renderIcon={Reset}
+              iconDescription="Reset all edits"
+              tooltipPosition="left"
+              disabled={!canReset}
+              onClick={onReset}
+            />
+          )}
           <Button
             className="crop-focus-toggle"
             kind="ghost"
