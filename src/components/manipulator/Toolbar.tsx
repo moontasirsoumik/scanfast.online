@@ -1,3 +1,4 @@
+import { useCallback, useRef } from 'react';
 import { Button } from '@carbon/react';
 import {
   CheckboxChecked,
@@ -9,6 +10,10 @@ import {
   Minimize,
   Undo,
   Redo,
+  WatsonHealthTextAnnotationToggle,
+  ListNumbered,
+  Locked,
+  Unlocked,
 } from '@carbon/icons-react';
 import './Toolbar.css';
 
@@ -25,6 +30,10 @@ interface ToolbarProps {
   onDelete: () => void;
   onSplit: () => void;
   onCompress: () => void;
+  onWatermark: () => void;
+  onPageNumbers: () => void;
+  onProtect: () => void;
+  onUnlock: () => void;
   onUndo: () => void;
   onRedo: () => void;
   onSelectAll: () => void;
@@ -34,15 +43,28 @@ interface ToolbarProps {
 export default function Toolbar({
   pageCount, selectedCount, canUndo, canRedo, isLoading, maxPages,
   onRotate, onDuplicate, onInsertBlank, onDelete,
-  onSplit, onCompress, onUndo, onRedo, onSelectAll
+  onSplit, onCompress, onWatermark, onPageNumbers,
+  onProtect, onUnlock,
+  onUndo, onRedo, onSelectAll
 }: ToolbarProps) {
   const atPageLimit = pageCount >= maxPages;
   const noSelection = selectedCount === 0;
   const noPages = pageCount === 0;
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  /** Convert vertical mouse wheel to horizontal scroll on the toolbar */
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    }
+  }, []);
 
   return (
     <div className="toolbar" role="toolbar" aria-label="Page operations" aria-orientation="horizontal">
-      <div className="toolbar-scroll">
+      <div className="toolbar-scroll" ref={scrollRef} onWheel={handleWheel}>
         <div className="toolbar-group">
           <Button kind="ghost" size="sm" renderIcon={CheckboxChecked} iconDescription="Select all" disabled={noPages} onClick={onSelectAll}>
             Select All
@@ -70,6 +92,24 @@ export default function Toolbar({
           </Button>
           <Button kind="ghost" size="sm" renderIcon={Minimize} iconDescription="Compress" disabled={noSelection} onClick={onCompress}>
             Compress
+          </Button>
+        </div>
+        <div className="toolbar-divider" />
+        <div className="toolbar-group">
+          <Button kind="ghost" size="sm" renderIcon={WatsonHealthTextAnnotationToggle} iconDescription="Watermark" disabled={noPages} onClick={onWatermark}>
+            Watermark
+          </Button>
+          <Button kind="ghost" size="sm" renderIcon={ListNumbered} iconDescription="Page numbers" disabled={noPages} onClick={onPageNumbers}>
+            Page #
+          </Button>
+        </div>
+        <div className="toolbar-divider" />
+        <div className="toolbar-group">
+          <Button kind="ghost" size="sm" renderIcon={Locked} iconDescription="Protect PDF" disabled={noPages} onClick={onProtect}>
+            Protect
+          </Button>
+          <Button kind="ghost" size="sm" renderIcon={Unlocked} iconDescription="Unlock PDF" onClick={onUnlock}>
+            Unlock
           </Button>
         </div>
       </div>
