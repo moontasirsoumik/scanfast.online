@@ -16,7 +16,11 @@ const FILTERS: { type: FilterType; label: string }[] = [
   { type: 'bw', label: 'B&W' },
   { type: 'grayscale', label: 'Gray' },
   { type: 'sharpen', label: 'Sharpen' },
-  { type: 'color', label: 'Color' }
+  { type: 'color', label: 'Color' },
+  { type: 'warm', label: 'Warm' },
+  { type: 'cool', label: 'Cool' },
+  { type: 'fade', label: 'Fade' },
+  { type: 'vivid', label: 'Vivid' }
 ];
 
 /** Resize blob to a small version for preview generation */

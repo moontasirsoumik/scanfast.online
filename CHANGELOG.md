@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com), and this project adheres to [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Fixed
+
+- Auto-crop now re-runs high-quality document detection on the captured photo instead of reusing the lower-resolution live overlay as the final crop
+- Document detection scoring now better rejects quads that do not follow the actual page outline by checking boundary alignment and inside/outside contrast along each edge
+- Close-up scans now better preserve the whole page by allowing near-full-frame documents, raising detection resolution, and expanding the detected quad slightly outward as a safety margin
+
 ## [0.2.3] - 2026-04-09
 
 ### Changed
@@ -61,7 +69,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 - Document scanner with camera capture, auto-crop, 4-corner perspective correction
 - Image filters: Enhance, B&W (Otsu), Grayscale, Sharpen, Photo Color
-- PDF Manipulator: import, merge, split, rotate, delete, duplicate, reorder, compress
+- PDF Tools: import, merge, split, rotate, delete, duplicate, reorder, compress
 - ZIP download for split PDF outputs
 - Drag-and-drop page reordering
 - Undo/redo with keyboard shortcuts
@@ -73,5 +81,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - Lazy route loading for performance
 - Web Share API integration
 - Print support
-- Scanner → Manipulator bridge
+- Scanner → PDF Tools bridge
 - Mobile-first responsive design (320px+)

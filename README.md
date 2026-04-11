@@ -1,6 +1,6 @@
 # ScanFastOnline
 
-**Free, offline-capable document scanner and PDF manipulator. No ads, no logins, no tracking.**
+**Free, offline-capable document scanner and PDF tools. No ads, no logins, no tracking.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Website](https://img.shields.io/badge/Website-scanfast.online-brightgreen)](https://scanfast.online)
@@ -13,14 +13,14 @@ Everything runs in your browser. Nothing is ever uploaded.
 
 - **Document Scanner** — Camera capture with 4-corner perspective correction, auto-crop, and live viewfinder
 - **Image Filters** — Enhance, B&W (Otsu threshold), Grayscale, Sharpen, Photo Color — all Canvas API, no server
-- **PDF Manipulator** — Import, merge, split, rotate, delete, duplicate, reorder, and compress PDFs
+- **PDF Tools** — Import, merge, split, rotate, delete, duplicate, reorder, and compress PDFs
 - **Drag-and-Drop** — Reorder pages visually with drag-and-drop on desktop and touch devices
 - **Offline-First** — PWA with service worker; works without internet after first load
 - **Privacy** — All processing happens client-side. Zero network requests at runtime
 - **Mobile-First** — Designed for 320px+ screens with touch gestures (pinch-to-zoom, swipe, long-press)
 - **Undo/Redo** — Full command history with keyboard shortcuts
 - **Export Options** — PDF, JPEG/PNG, print, Web Share API, ZIP for split outputs
-- **Scanner → Manipulator Bridge** — Send scanned pages directly into the PDF manipulator
+- **Scanner → PDF Tools Bridge** — Send scanned pages directly into PDF Tools
 
 ## Tech Stack
 

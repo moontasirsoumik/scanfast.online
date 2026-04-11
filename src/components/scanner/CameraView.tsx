@@ -1,6 +1,16 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { Button } from '@carbon/react';
-import { Image as ImageIcon, Close, Checkmark, Flash, FlashOff, FlashFilled } from '@carbon/icons-react';
+import { Image as ImageIcon, Close, Checkmark, Flash, FlashOff, FlashFilled, Crop } from '@carbon/icons-react';
+
+/** Crop-off icon: crop with a diagonal strike-through */
+function CropOffIcon() {
+  return (
+    <svg viewBox="0 0 32 32" width="24" height="24" fill="currentColor" aria-hidden="true">
+      <path d="M25 23h-2V9H9V7h14a2 2 0 0 1 2 2zM7 9h2v14h14v2H9a2 2 0 0 1-2-2z" />
+      <path d="M3.5 4.9 4.9 3.5l23.6 23.6-1.4 1.4z" />
+    </svg>
+  );
+}
 
 /** Camera flip icon: camera outline with two circular arrows inside */
 function CameraFlipIcon() {
@@ -44,6 +54,7 @@ export default function CameraView({ onCapture, onClose }: CameraViewProps) {
   const [multipleDevices, setMultipleDevices] = useState(false);
   const [flashMode, setFlashMode] = useState<FlashMode>('off');
   const [torchSupported, setTorchSupported] = useState(false);
+  const [autoCrop, setAutoCrop] = useState(true);
   const cameraFacing = useScannerStore((s) => s.cameraFacing);
   const setCameraFacing = useScannerStore((s) => s.setCameraFacing);
   const pageCount = useScannerStore((s) => s.pages.length);
@@ -143,61 +154,21 @@ export default function CameraView({ onCapture, onClose }: CameraViewProps) {
       const br = toScreen(quad.br);
       const bl = toScreen(quad.bl);
 
-      // Semi-transparent fill
+      // Light blue fill
       ctx.beginPath();
       ctx.moveTo(tl.x, tl.y);
       ctx.lineTo(tr.x, tr.y);
       ctx.lineTo(br.x, br.y);
       ctx.lineTo(bl.x, bl.y);
       ctx.closePath();
-      ctx.fillStyle = 'rgba(0, 255, 60, 0.08)';
+      ctx.fillStyle = 'rgba(100, 180, 255, 0.12)';
       ctx.fill();
 
-      // Bright green border
-      ctx.strokeStyle = '#00ff3c';
-      ctx.lineWidth = 2.5;
+      // Light blue border
+      ctx.strokeStyle = 'rgba(100, 180, 255, 0.8)';
+      ctx.lineWidth = 2;
       ctx.lineJoin = 'round';
       ctx.stroke();
-
-      // Corner brackets
-      const BRACKET_LEN = 20;
-      const corners = [tl, tr, br, bl];
-      const nextCorners = [tr, br, bl, tl];
-      const prevCorners = [bl, tl, tr, br];
-
-      ctx.strokeStyle = '#00ff3c';
-      ctx.lineWidth = 4;
-      ctx.lineCap = 'round';
-
-      for (let i = 0; i < 4; i++) {
-        const c = corners[i];
-        const next = nextCorners[i];
-        const prev = prevCorners[i];
-
-        // Direction toward next corner
-        const toNextX = next.x - c.x;
-        const toNextY = next.y - c.y;
-        const toNextLen = Math.hypot(toNextX, toNextY);
-        const bracketToNext = Math.min(BRACKET_LEN, toNextLen * 0.3);
-
-        // Direction toward prev corner
-        const toPrevX = prev.x - c.x;
-        const toPrevY = prev.y - c.y;
-        const toPrevLen = Math.hypot(toPrevX, toPrevY);
-        const bracketToPrev = Math.min(BRACKET_LEN, toPrevLen * 0.3);
-
-        ctx.beginPath();
-        ctx.moveTo(c.x + (toPrevX / toPrevLen) * bracketToPrev, c.y + (toPrevY / toPrevLen) * bracketToPrev);
-        ctx.lineTo(c.x, c.y);
-        ctx.lineTo(c.x + (toNextX / toNextLen) * bracketToNext, c.y + (toNextY / toNextLen) * bracketToNext);
-        ctx.stroke();
-
-        // Corner dot
-        ctx.beginPath();
-        ctx.arc(c.x, c.y, 4, 0, Math.PI * 2);
-        ctx.fillStyle = '#00ff3c';
-        ctx.fill();
-      }
     };
 
     const detectLoop = (time: number) => {
@@ -210,7 +181,7 @@ export default function CameraView({ onCapture, onClose }: CameraViewProps) {
           const result = detectDocument(video);
           const stable = stabilizeQuad(result.quad);
           lastQuadRef.current = stable;
-          drawOverlay(stable);
+          drawOverlay(autoCrop ? stable : null);
         }
       }
 
@@ -223,70 +194,60 @@ export default function CameraView({ onCapture, onClose }: CameraViewProps) {
       running = false;
       if (detectionRafRef.current) cancelAnimationFrame(detectionRafRef.current);
     };
-  }, []);
+  }, [autoCrop]);
 
-  const animateCaptureToButton = useCallback((onComplete: () => void) => {
+  const animateCaptureToButton = useCallback((onComplete: () => void, previewUrl: string) => {
     const container = cameraViewRef.current;
-    const video = videoRef.current;
-    if (!container || !video) { onComplete(); return; }
-
-    // Capture current video frame as a snapshot
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) { onComplete(); return; }
-    ctx.drawImage(video, 0, 0);
-
-    const snapshot = document.createElement('img');
-    snapshot.src = canvas.toDataURL('image/jpeg', 0.6);
-    snapshot.className = 'capture-fly-thumb';
+    if (!container) { onComplete(); return; }
 
     const containerRect = container.getBoundingClientRect();
 
-    // Start: cover entire viewfinder as a square (use shorter dimension)
-    const size = Math.max(containerRect.width, containerRect.height);
-    snapshot.style.width = `${size}px`;
-    snapshot.style.height = `${size}px`;
-    snapshot.style.left = `${(containerRect.width - size) / 2}px`;
-    snapshot.style.top = `${(containerRect.height - size) / 2}px`;
+    // Single element: preview with thick white border that flies to Done
+    const preview = document.createElement('img');
+    preview.src = previewUrl;
+    preview.className = 'capture-preview-card';
+    container.appendChild(preview);
 
-    container.appendChild(snapshot);
-
-    // Wait for Done button to render (it appears when pageCount increments)
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const doneBtn = doneBtnRef.current;
-        if (doneBtn) {
-          const btnRect = doneBtn.getBoundingClientRect();
-          const endX = btnRect.left - containerRect.left + btnRect.width / 2;
-          const endY = btnRect.top - containerRect.top + btnRect.height / 2;
-          const startCX = containerRect.width / 2;
-          const startCY = containerRect.height / 2;
-
-          snapshot.style.transform = `translate(${endX - startCX}px, ${endY - startCY}px) scale(0.04)`;
-          snapshot.style.opacity = '0.4';
-          snapshot.style.borderRadius = '12px';
-        }
-      });
-    });
-
-    // Cleanup after animation, then update page count
-    let cleaned = false;
-    const cleanup = () => {
-      if (cleaned) return;
-      cleaned = true;
-      snapshot.remove();
-      onComplete();
+    // Phase 1: Show preview briefly (already visible via CSS animation)
+    // Phase 2: Shrink and fly to Done button
+    setTimeout(() => {
       const doneBtn = doneBtnRef.current;
       if (doneBtn) {
-        doneBtn.classList.add('done-btn--pulse');
-        setTimeout(() => doneBtn.classList.remove('done-btn--pulse'), 500);
+        const freshRect = container.getBoundingClientRect();
+        const btnRect = doneBtn.getBoundingClientRect();
+        const targetX = btnRect.left - freshRect.left + btnRect.width / 2;
+        const targetY = btnRect.top - freshRect.top + btnRect.height / 2;
+
+        preview.style.transition = 'all 550ms cubic-bezier(0.16, 1, 0.3, 1)';
+        preview.style.left = `${targetX}px`;
+        preview.style.top = `${targetY}px`;
+        preview.style.maxWidth = '36px';
+        preview.style.maxHeight = '36px';
+        preview.style.opacity = '0.3';
+        preview.style.borderRadius = '10px';
+        preview.style.borderWidth = '2px';
+      } else {
+        preview.style.transition = 'all 550ms cubic-bezier(0.16, 1, 0.3, 1)';
+        preview.style.opacity = '0';
+        preview.style.maxWidth = '36px';
+        preview.style.maxHeight = '36px';
       }
-    };
-    snapshot.addEventListener('transitionend', cleanup, { once: true });
-    // Safety fallback
-    setTimeout(cleanup, 1200);
+
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        preview.remove();
+        onComplete();
+        const doneBtn = doneBtnRef.current;
+        if (doneBtn) {
+          doneBtn.classList.add('done-btn--pulse');
+          setTimeout(() => doneBtn.classList.remove('done-btn--pulse'), 500);
+        }
+      };
+      preview.addEventListener('transitionend', cleanup, { once: true });
+      setTimeout(cleanup, 800);
+    }, 350);
   }, []);
 
   const handleCapture = async () => {
@@ -310,8 +271,49 @@ export default function CameraView({ onCapture, onClose }: CameraViewProps) {
         await setTorch(streamRef.current!, false);
       }
       triggerHaptic();
-      const capturedQuad = lastQuadRef.current;
-      animateCaptureToButton(() => onCapture(blob, capturedQuad));
+      const capturedQuad = autoCrop ? lastQuadRef.current : null;
+
+      // Generate preview: cropped if auto-crop, full frame if not
+      const rawCanvas = document.createElement('canvas');
+      rawCanvas.width = videoRef.current.videoWidth;
+      rawCanvas.height = videoRef.current.videoHeight;
+      const rawCtx = rawCanvas.getContext('2d');
+      if (rawCtx) rawCtx.drawImage(videoRef.current, 0, 0);
+
+      let previewUrl: string;
+      if (capturedQuad) {
+        // Draw just the cropped quad region for preview
+        const q = capturedQuad;
+        const vw = rawCanvas.width;
+        const vh = rawCanvas.height;
+        const tl = { x: q.tl.x * vw, y: q.tl.y * vh };
+        const tr = { x: q.tr.x * vw, y: q.tr.y * vh };
+        const br = { x: q.br.x * vw, y: q.br.y * vh };
+        const bl = { x: q.bl.x * vw, y: q.bl.y * vh };
+        // Bounding box of the quad
+        const minX = Math.max(0, Math.floor(Math.min(tl.x, tr.x, br.x, bl.x)));
+        const minY = Math.max(0, Math.floor(Math.min(tl.y, tr.y, br.y, bl.y)));
+        const maxX = Math.min(vw, Math.ceil(Math.max(tl.x, tr.x, br.x, bl.x)));
+        const maxY = Math.min(vh, Math.ceil(Math.max(tl.y, tr.y, br.y, bl.y)));
+        const cropW = maxX - minX;
+        const cropH = maxY - minY;
+        if (cropW > 0 && cropH > 0) {
+          const cropCanvas = document.createElement('canvas');
+          cropCanvas.width = cropW;
+          cropCanvas.height = cropH;
+          const cropCtx = cropCanvas.getContext('2d');
+          if (cropCtx) {
+            cropCtx.drawImage(rawCanvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
+          }
+          previewUrl = cropCanvas.toDataURL('image/jpeg', 0.5);
+        } else {
+          previewUrl = rawCanvas.toDataURL('image/jpeg', 0.5);
+        }
+      } else {
+        previewUrl = rawCanvas.toDataURL('image/jpeg', 0.5);
+      }
+
+      animateCaptureToButton(() => onCapture(blob, capturedQuad), previewUrl);
     } finally {
       setIsCapturing(false);
     }
@@ -364,6 +366,13 @@ export default function CameraView({ onCapture, onClose }: CameraViewProps) {
               <CameraFlipIcon />
             </button>
           )}
+          <button
+            className={`control-btn${autoCrop ? ' control-btn--active' : ''}`}
+            onClick={() => setAutoCrop((v) => !v)}
+            aria-label={autoCrop ? 'Auto-crop on' : 'Auto-crop off'}
+          >
+            {autoCrop ? <Crop size={24} /> : <CropOffIcon />}
+          </button>
         </div>
         <button
           className={`done-btn${pageCount === 0 ? ' done-btn--disabled' : ''}`}
@@ -403,24 +412,24 @@ export default function CameraView({ onCapture, onClose }: CameraViewProps) {
       )}
 
       <div className="controls-bar">
-        {torchSupported ? (
-          <button
-            className={`control-btn${flashMode !== 'off' ? ' control-btn--active' : ''}`}
-            onClick={cycleFlash}
-            aria-label={`Flash: ${flashMode}`}
-          >
-            {flashMode === 'off' && <FlashOff size={24} />}
-            {flashMode === 'on' && <FlashFilled size={24} />}
-            {flashMode === 'auto' && (
-              <>
-                <Flash size={24} />
-                <span className="flash-auto-badge">A</span>
-              </>
-            )}
-          </button>
-        ) : (
-          <div className="control-btn-placeholder" />
-        )}
+          {torchSupported ? (
+            <button
+              className={`control-btn${flashMode !== 'off' ? ' control-btn--active' : ''}`}
+              onClick={cycleFlash}
+              aria-label={`Flash: ${flashMode}`}
+            >
+              {flashMode === 'off' && <FlashOff size={24} />}
+              {flashMode === 'on' && <FlashFilled size={24} />}
+              {flashMode === 'auto' && (
+                <>
+                  <Flash size={24} />
+                  <span className="flash-auto-badge">A</span>
+                </>
+              )}
+            </button>
+          ) : (
+            <div className="control-btn-placeholder" />
+          )}
 
         <button
           className="capture-btn"

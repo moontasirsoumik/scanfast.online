@@ -1,6 +1,6 @@
 # Contributing to ScanFastOnline
 
-Thanks for your interest in contributing! ScanFastOnline is a client-side document scanner and PDF manipulator — every contribution helps make document handling more accessible.
+Thanks for your interest in contributing! ScanFastOnline is a client-side document scanner and PDF tools suite — every contribution helps make document handling more accessible.
 
 ## Prerequisites
 

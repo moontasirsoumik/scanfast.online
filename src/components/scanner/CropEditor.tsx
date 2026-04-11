@@ -1,12 +1,28 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { Button } from '@carbon/react';
-import { Maximize, Minimize } from '@carbon/icons-react';
+import { Maximize, Minimize, Crop, ReflectHorizontal, ReflectVertical, Rotate, RotateCounterclockwise, RotateClockwise, WatsonHealthAngle } from '@carbon/icons-react';
 import type { QuadCrop, Point } from '@/stores/scanner';
+import { detectDocumentFromBlob } from '@/services/documentDetection';
 import './CropEditor.css';
+import '../scanner/AdjustmentBar.css';
+
+type CropTool = 'straighten' | 'perspectiveH' | 'perspectiveV';
 
 interface CropEditorProps {
   imageUrl: string;
   initialCrop: QuadCrop | null;
+  rotation: number;
+  straighten: number;
+  flipH: boolean;
+  flipV: boolean;
+  perspectiveH: number;
+  perspectiveV: number;
+  onRotate: (degrees: number) => void;
+  onStraightenChange: (v: number) => void;
+  onFlipH: () => void;
+  onFlipV: () => void;
+  onPerspectiveHChange: (v: number) => void;
+  onPerspectiveVChange: (v: number) => void;
   onChange: (crop: QuadCrop) => void;
   onConfirm: () => void;
   onCancel: () => void;
@@ -27,18 +43,30 @@ function dist(ax: number, ay: number, bx: number, by: number): number {
 }
 
 /** Canvas-based 4-corner quadrilateral crop editor with pinch-to-zoom */
-export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm, onCancel }: CropEditorProps) {
+export default function CropEditor({ imageUrl, initialCrop, rotation, straighten, flipH, flipV, perspectiveH, perspectiveV, onRotate, onStraightenChange, onFlipH, onFlipV, onPerspectiveHChange, onPerspectiveVChange, onChange, onConfirm, onCancel }: CropEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const loupeCanvasRef = useRef<HTMLCanvasElement>(null);
   const loupeContainerRef = useRef<HTMLDivElement>(null);
   const sourceImgRef = useRef<HTMLImageElement | null>(null);
+  const cropTabsRef = useRef<HTMLDivElement>(null);
+
+  const handleCropTabsWheel = useCallback((e: React.WheelEvent) => {
+    const el = cropTabsRef.current;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    if (e.deltaY !== 0) {
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    }
+  }, []);
 
   const [imgLoaded, setImgLoaded] = useState(false);
   const [loupeVisible, setLoupeVisible] = useState(false);
   const [loupeStyle, setLoupeStyle] = useState<React.CSSProperties>({});
   const [isFocusMode, setIsFocusMode] = useState(false);
+  const [isDetecting, setIsDetecting] = useState(false);
+  const animFrameRef = useRef<number>(0);
   const imgRectRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
   const quadRef = useRef<QuadCrop>(initialCrop ? { ...initialCrop, tl: { ...initialCrop.tl }, tr: { ...initialCrop.tr }, br: { ...initialCrop.br }, bl: { ...initialCrop.bl } } : { ...DEFAULT_QUAD });
   const dragRef = useRef<{ corner: CornerKey; } | null>(null);
@@ -318,6 +346,63 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
     updateImgRect();
   };
 
+  /** Animate quad corners from current position to target over ~300ms */
+  const animateQuadTo = useCallback((target: QuadCrop) => {
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+
+    const start = {
+      tl: { ...quadRef.current.tl },
+      tr: { ...quadRef.current.tr },
+      br: { ...quadRef.current.br },
+      bl: { ...quadRef.current.bl },
+    };
+    const duration = 300;
+    const t0 = performance.now();
+
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+    const ease = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+    const step = (now: number) => {
+      const elapsed = now - t0;
+      const raw = Math.min(1, elapsed / duration);
+      const t = ease(raw);
+
+      quadRef.current = {
+        tl: { x: lerp(start.tl.x, target.tl.x, t), y: lerp(start.tl.y, target.tl.y, t) },
+        tr: { x: lerp(start.tr.x, target.tr.x, t), y: lerp(start.tr.y, target.tr.y, t) },
+        br: { x: lerp(start.br.x, target.br.x, t), y: lerp(start.br.y, target.br.y, t) },
+        bl: { x: lerp(start.bl.x, target.bl.x, t), y: lerp(start.bl.y, target.bl.y, t) },
+      };
+      drawOverlay();
+
+      if (raw < 1) {
+        animFrameRef.current = requestAnimationFrame(step);
+      } else {
+        animFrameRef.current = 0;
+        onChange({ ...quadRef.current });
+      }
+    };
+
+    animFrameRef.current = requestAnimationFrame(step);
+  }, [drawOverlay, onChange]);
+
+  const handleAutoCrop = useCallback(async () => {
+    if (isDetecting) return;
+    setIsDetecting(true);
+    try {
+      const resp = await fetch(imageUrl);
+      const blob = await resp.blob();
+      const detected = await detectDocumentFromBlob(blob);
+      if (detected) {
+        animateQuadTo(detected);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setIsDetecting(false);
+    }
+  }, [imageUrl, isDetecting, animateQuadTo]);
+
   const blurTarget = (e: React.MouseEvent) => {
     (e.currentTarget as HTMLElement).blur();
   };
@@ -358,6 +443,7 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
 
   useEffect(() => {
     return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       document.documentElement.classList.remove(FOCUS_MODE_CLASS);
       document.body.classList.remove(FOCUS_MODE_CLASS);
       for (const element of Array.from(document.querySelectorAll('.cds--header, .preview-bottom-panel, .sf-preview-header, .sf-preview-nav-button'))) {
@@ -365,6 +451,37 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
       }
     };
   }, []);
+
+  const [activeTool, setActiveTool] = useState<CropTool>('straighten');
+
+  const toolSliderValue = activeTool === 'straighten' ? straighten
+    : activeTool === 'perspectiveH' ? perspectiveH
+    : perspectiveV;
+
+  const toolSliderRange = activeTool === 'straighten'
+    ? { min: -15, max: 15, step: 0.5 }
+    : { min: -50, max: 50, step: 1 };
+
+  const toolSliderLabel = activeTool === 'straighten' ? `${straighten.toFixed(1)}°`
+    : activeTool === 'perspectiveH' ? `${perspectiveH}`
+    : `${perspectiveV}`;
+
+  const handleToolSlider = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = parseFloat(e.target.value);
+    if (activeTool === 'straighten') onStraightenChange(v);
+    else if (activeTool === 'perspectiveH') onPerspectiveHChange(v);
+    else if (activeTool === 'perspectiveV') onPerspectiveVChange(v);
+  };
+
+  const resetToolSlider = () => {
+    if (activeTool === 'straighten') onStraightenChange(0);
+    else if (activeTool === 'perspectiveH') onPerspectiveHChange(0);
+    else if (activeTool === 'perspectiveV') onPerspectiveVChange(0);
+  };
+
+  const selectTool = (tool: CropTool) => {
+    setActiveTool(tool);
+  };
 
   return (
     <div className={`crop-editor${isFocusMode ? ' crop-editor--focus-mode' : ''}`}>
@@ -399,6 +516,17 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
             kind="ghost"
             size="sm"
             hasIconOnly
+            renderIcon={Crop}
+            iconDescription="Auto-detect edges"
+            tooltipPosition="left"
+            onClick={handleAutoCrop}
+            disabled={isDetecting}
+          />
+          <Button
+            className="crop-focus-toggle"
+            kind="ghost"
+            size="sm"
+            hasIconOnly
             renderIcon={isFocusMode ? Minimize : Maximize}
             iconDescription={isFocusMode ? 'Restore crop view' : 'Maximize crop view'}
             tooltipPosition="left"
@@ -407,10 +535,89 @@ export default function CropEditor({ imageUrl, initialCrop, onChange, onConfirm,
         </div>
       </div>
 
-      <div className="crop-actions">
-        <Button kind="secondary" size="sm" onClick={handleCancel}>Cancel</Button>
-        <Button kind="primary" size="sm" onClick={handleConfirm}>Confirm</Button>
+      {/* --- Adjustment tools --- */}
+      {!isFocusMode && (
+      <div className="adjustment-bar">
+          <div className="adj-slider-row">
+            <input
+              type="range"
+              className="adj-slider"
+              min={toolSliderRange.min}
+              max={toolSliderRange.max}
+              step={toolSliderRange.step}
+              value={toolSliderValue}
+              onChange={handleToolSlider}
+              aria-label={activeTool}
+            />
+            <span className="adj-slider-label" onDoubleClick={resetToolSlider}>{toolSliderLabel}</span>
+          </div>
+        <div className="adj-tabs" ref={cropTabsRef} onWheel={handleCropTabsWheel}>
+          <button
+            className="adj-tab"
+            onClick={() => onRotate(((rotation - 90) % 360 + 360) % 360)}
+            aria-label="Rotate left"
+            title="Rotate left"
+          >
+            <RotateCounterclockwise size={18} />
+            <span>Rotate L</span>
+          </button>
+          <button
+            className="adj-tab"
+            onClick={() => onRotate((rotation + 90) % 360)}
+            aria-label="Rotate right"
+            title="Rotate right"
+          >
+            <RotateClockwise size={18} />
+            <span>Rotate R</span>
+          </button>
+          <button
+            className={`adj-tab${activeTool === 'straighten' ? ' active' : ''}${straighten !== 0 ? ' modified' : ''}`}
+            onClick={() => selectTool('straighten')}
+            aria-label="Straighten"
+            title="Straighten"
+          >
+            <Rotate size={18} />
+            <span>Straighten</span>
+          </button>
+          <button
+            className={`adj-tab${flipH ? ' active' : ''}`}
+            onClick={onFlipH}
+            aria-label="Flip horizontal"
+            title="Flip horizontal"
+          >
+            <ReflectHorizontal size={18} />
+            <span>Flip H</span>
+          </button>
+          <button
+            className={`adj-tab${flipV ? ' active' : ''}`}
+            onClick={onFlipV}
+            aria-label="Flip vertical"
+            title="Flip vertical"
+          >
+            <ReflectVertical size={18} />
+            <span>Flip V</span>
+          </button>
+          <button
+            className={`adj-tab${activeTool === 'perspectiveH' ? ' active' : ''}${perspectiveH !== 0 ? ' modified' : ''}`}
+            onClick={() => selectTool('perspectiveH')}
+            aria-label="Perspective horizontal"
+            title="Perspective horizontal"
+          >
+            <WatsonHealthAngle size={18} />
+            <span>Persp. H</span>
+          </button>
+          <button
+            className={`adj-tab${activeTool === 'perspectiveV' ? ' active' : ''}${perspectiveV !== 0 ? ' modified' : ''}`}
+            onClick={() => selectTool('perspectiveV')}
+            aria-label="Perspective vertical"
+            title="Perspective vertical"
+          >
+            <WatsonHealthAngle size={18} style={{ transform: 'rotate(90deg)' }} />
+            <span>Persp. V</span>
+          </button>
+        </div>
       </div>
+      )}
     </div>
   );
 }

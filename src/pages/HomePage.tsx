@@ -55,13 +55,13 @@ export default function HomePage() {
                 <div className="card-icon">
                   <DocumentPdf size={32} />
                 </div>
-                <h2>PDF Manipulator</h2>
+                <h2>PDF Tools</h2>
                 <p>
                   Combine PDFs, rearrange pages, rotate, split, and compress.
                   Everything happens on your device — nothing gets uploaded.
                 </p>
                 <div className="card-action">
-                  Open Manipulator <ArrowRight size={16} />
+                  Open PDF Tools <ArrowRight size={16} />
                 </div>
               </div>
             </ClickableTile>
