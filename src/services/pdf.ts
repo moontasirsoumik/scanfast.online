@@ -1,4 +1,4 @@
-import { PDFDocument, degrees } from 'pdf-lib';
+import { PDFDocument, degrees, rgb, StandardFonts } from 'pdf-lib';
 
 /** Lazy-loaded pdfjs-dist (browser-only, avoids SSR DOMMatrix error) */
 let pdfjsLib: typeof import('pdfjs-dist') | null = null;
@@ -501,4 +501,290 @@ export function downloadBlob(blob: Blob, filename: string): void {
 	a.download = filename;
 	a.click();
 	URL.revokeObjectURL(url);
+}
+
+// ─── Extract text ────────────────────────────────────────────────────
+
+/**
+ * Extract text content from all pages using pdfjs-dist.
+ * @param pages - Array of PageData to extract text from
+ * @returns Plain text content of all pages concatenated
+ */
+export async function extractText(pages: PageData[]): Promise<string> {
+	const pdfjs = await getPdfjs();
+	const textParts: string[] = [];
+
+	// Group pages by source PDF to avoid opening the same PDF multiple times
+	const bySource = new Map<string, PageData[]>();
+	for (const page of pages) {
+		const key = page.sourceType === 'pdf' ? `${page.sourceFile}:${page.data.byteLength}` : `img:${page.id}`;
+		if (!bySource.has(key)) bySource.set(key, []);
+		bySource.get(key)!.push(page);
+	}
+
+	for (const group of bySource.values()) {
+		if (group[0].sourceType === 'pdf') {
+			const pdfDoc = await pdfjs.getDocument({ data: group[0].data.slice() }).promise;
+			for (const page of group) {
+				const pdfPage = await pdfDoc.getPage(page.sourcePageIndex + 1);
+				const content = await pdfPage.getTextContent();
+				const pageText = content.items
+					.map((item) => ('str' in item ? item.str : ''))
+					.join(' ');
+				if (pageText.trim()) {
+					textParts.push(`--- Page ${pages.indexOf(page) + 1} ---\n${pageText.trim()}`);
+				}
+				pdfPage.cleanup();
+			}
+			pdfDoc.destroy();
+		}
+		// Images have no extractable text — skip silently
+	}
+
+	return textParts.join('\n\n');
+}
+
+// ─── Watermark ───────────────────────────────────────────────────────
+
+export interface WatermarkOptions {
+	text: string;
+	fontSize: number;
+	opacity: number;
+	rotation: number;
+	color: { r: number; g: number; b: number };
+}
+
+/**
+ * Add a text watermark to each page of the PDF.
+ * Returns new PDF bytes.
+ */
+export async function addWatermark(pages: PageData[], options: WatermarkOptions): Promise<Uint8Array> {
+	const pdfBytes = await exportAsPdf(pages);
+	const pdfDoc = await PDFDocument.load(pdfBytes);
+	const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+	const { text, fontSize, opacity, rotation, color } = options;
+
+	const pdfPages = pdfDoc.getPages();
+	for (const page of pdfPages) {
+		const { width, height } = page.getSize();
+		const textWidth = font.widthOfTextAtSize(text, fontSize);
+		const textHeight = font.heightAtSize(fontSize);
+
+		page.drawText(text, {
+			x: (width - textWidth) / 2,
+			y: (height - textHeight) / 2,
+			size: fontSize,
+			font,
+			color: rgb(color.r, color.g, color.b),
+			opacity,
+			rotate: degrees(rotation),
+		});
+	}
+
+	return pdfDoc.save();
+}
+
+// ─── Page numbers ────────────────────────────────────────────────────
+
+export type PageNumberPosition = 'bottom-center' | 'bottom-left' | 'bottom-right' | 'top-center' | 'top-left' | 'top-right';
+
+export interface PageNumberOptions {
+	position: PageNumberPosition;
+	fontSize: number;
+	startNumber: number;
+	prefix: string;
+}
+
+/**
+ * Add page numbers to each page of the PDF.
+ * Returns new PDF bytes.
+ */
+export async function addPageNumbers(pages: PageData[], options: PageNumberOptions): Promise<Uint8Array> {
+	const pdfBytes = await exportAsPdf(pages);
+	const pdfDoc = await PDFDocument.load(pdfBytes);
+	const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+	const { position, fontSize, startNumber, prefix } = options;
+	const margin = 30;
+
+	const pdfPages = pdfDoc.getPages();
+	for (let i = 0; i < pdfPages.length; i++) {
+		const page = pdfPages[i];
+		const { width, height } = page.getSize();
+		const label = `${prefix}${startNumber + i}`;
+		const textWidth = font.widthOfTextAtSize(label, fontSize);
+
+		let x: number;
+		let y: number;
+
+		if (position.startsWith('bottom')) {
+			y = margin;
+		} else {
+			y = height - margin - fontSize;
+		}
+
+		if (position.endsWith('center')) {
+			x = (width - textWidth) / 2;
+		} else if (position.endsWith('left')) {
+			x = margin;
+		} else {
+			x = width - textWidth - margin;
+		}
+
+		page.drawText(label, {
+			x, y,
+			size: fontSize,
+			font,
+			color: rgb(0, 0, 0),
+			opacity: 0.7,
+		});
+	}
+
+	return pdfDoc.save();
+}
+
+// ─── Unlock PDF ──────────────────────────────────────────────────────
+
+/**
+ * Load a password-protected PDF file using pdfjs-dist.
+ * @param file - The encrypted PDF file
+ * @param password - The user/owner password
+ * @param thumbnailWidth - Width of thumbnail in pixels
+ * @returns Array of PageData objects
+ */
+export async function unlockPdf(file: File, password: string, thumbnailWidth = 200): Promise<PageData[]> {
+	const arrayBuffer = await file.arrayBuffer();
+	const uint8 = new Uint8Array(arrayBuffer);
+
+	const pdfjs = await getPdfjs();
+	const pdfDoc = await pdfjs.getDocument({ data: uint8.slice(), password }).promise;
+	const pages: PageData[] = [];
+
+	// Re-save without password via pdf-lib (load from rendered pages as images)
+	for (let i = 0; i < pdfDoc.numPages; i++) {
+		const page = await pdfDoc.getPage(i + 1);
+		const viewport = page.getViewport({ scale: 1 });
+
+		// Render full page to canvas
+		const fullCanvas = document.createElement('canvas');
+		fullCanvas.width = viewport.width;
+		fullCanvas.height = viewport.height;
+		await page.render({ canvas: fullCanvas, viewport }).promise;
+
+		const jpegBlob = await new Promise<Blob>((resolve) => {
+			fullCanvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.92);
+		});
+		const data = new Uint8Array(await jpegBlob.arrayBuffer());
+
+		// Thumbnail
+		const scale = thumbnailWidth / viewport.width;
+		const thumbCanvas = document.createElement('canvas');
+		thumbCanvas.width = viewport.width * scale;
+		thumbCanvas.height = viewport.height * scale;
+		const thumbCtx = thumbCanvas.getContext('2d')!;
+		thumbCtx.drawImage(fullCanvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+		const thumbnail = thumbCanvas.toDataURL('image/jpeg', 0.7);
+
+		pages.push({
+			id: generatePageId(),
+			thumbnail,
+			sourceType: 'image',
+			sourceFile: file.name,
+			sourcePageIndex: -1,
+			rotation: 0,
+			data,
+			width: viewport.width,
+			height: viewport.height,
+		});
+
+		page.cleanup();
+	}
+
+	pdfDoc.destroy();
+	return pages;
+}
+
+// ─── Protect PDF (password-protected ZIP wrapper) ────────────────────
+
+/**
+ * Check if a PDF file is password-protected.
+ * Returns true if the PDF requires a password to open.
+ */
+export async function isPdfEncrypted(file: File): Promise<boolean> {
+	const arrayBuffer = await file.arrayBuffer();
+	const uint8 = new Uint8Array(arrayBuffer);
+	const pdfjs = await getPdfjs();
+
+	try {
+		const doc = await pdfjs.getDocument({ data: uint8.slice() }).promise;
+		doc.destroy();
+		return false;
+	} catch (err: unknown) {
+		if (err && typeof err === 'object' && 'name' in err && (err as { name: string }).name === 'PasswordException') {
+			return true;
+		}
+		return false;
+	}
+}
+
+// ─── PDF to HTML ─────────────────────────────────────────────────────
+
+/**
+ * Export PDF pages as a styled HTML document with extracted text.
+ * @param pages - Array of PageData to convert
+ * @returns HTML string
+ */
+export async function exportAsHtml(pages: PageData[]): Promise<string> {
+	const pdfjs = await getPdfjs();
+	const htmlParts: string[] = [];
+
+	htmlParts.push(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScanFast PDF Export</title>
+<style>
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 2rem auto; max-width: 800px; padding: 0 1rem; color: #333; line-height: 1.6; }
+.page { border-bottom: 2px solid #e0e0e0; padding: 1.5rem 0; margin-bottom: 1.5rem; }
+.page:last-child { border-bottom: none; }
+.page-num { color: #0f62fe; font-weight: 600; font-size: 0.875rem; margin-bottom: 0.5rem; }
+.page-text { white-space: pre-wrap; }
+h1 { font-size: 1.5rem; color: #161616; border-bottom: 3px solid #0f62fe; padding-bottom: 0.5rem; }
+footer { margin-top: 2rem; color: #888; font-size: 0.75rem; text-align: center; }
+</style>
+</head>
+<body>
+<h1>Exported Document</h1>`);
+
+	for (let pageIdx = 0; pageIdx < pages.length; pageIdx++) {
+		const page = pages[pageIdx];
+		let pageText = '';
+
+		if (page.sourceType === 'pdf') {
+			const pdfDoc = await pdfjs.getDocument({ data: page.data.slice() }).promise;
+			const pdfPage = await pdfDoc.getPage(page.sourcePageIndex + 1);
+			const content = await pdfPage.getTextContent();
+			pageText = content.items
+				.map((item) => ('str' in item ? item.str : ''))
+				.join(' ');
+			pdfPage.cleanup();
+			pdfDoc.destroy();
+		}
+
+		const escaped = pageText
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;');
+
+		htmlParts.push(`<div class="page">
+<div class="page-num">Page ${pageIdx + 1}</div>
+<div class="page-text">${escaped || '<em>(Image page — no text content)</em>'}</div>
+</div>`);
+	}
+
+	htmlParts.push(`<footer>Generated by ScanFast.online</footer>
+</body>
+</html>`);
+
+	return htmlParts.join('\n');
 }

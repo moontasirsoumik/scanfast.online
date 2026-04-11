@@ -14,17 +14,43 @@
   gap: 4px;
   flex: 1;
   min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  flex-wrap: nowrap;
+}
+
+/* Thin scrollbar on desktop */
+.toolbar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cds-border-subtle-01, #262626) transparent;
+}
+.toolbar-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+.toolbar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.toolbar-scroll::-webkit-scrollbar-thumb {
+  background: var(--cds-border-subtle-01, #393939);
+  border-radius: 2px;
+}
+.toolbar-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--cds-text-secondary, #6f6f6f);
 }
 
 .toolbar-group {
   display: flex;
   align-items: center;
   gap: 2px;
+  flex-shrink: 0;
 }
 
 .toolbar-group--history {
   flex-shrink: 0;
   margin-left: auto;
+  border-left: 1px solid var(--cds-border-subtle-01, #262626);
+  padding-left: 4px;
 }
 
 .toolbar-divider {
@@ -35,6 +61,11 @@
   flex-shrink: 0;
 }
 
+.toolbar .cds--btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 @media (max-width: 671px) {
   .toolbar {
     flex-wrap: nowrap;
@@ -43,36 +74,20 @@
   }
 
   .toolbar-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-x;
     scrollbar-width: none;
-    flex-wrap: nowrap;
     gap: 2px;
   }
   .toolbar-scroll::-webkit-scrollbar { display: none; }
 
-  .toolbar-group--history {
-    border-left: 1px solid var(--cds-border-subtle-01, #262626);
-    padding-left: 4px;
-    margin-left: 4px;
-  }
-
   .toolbar .cds--btn {
-    flex-shrink: 0;
     padding: 6px 10px;
     min-height: 32px;
     font-size: 0.75rem;
-    white-space: nowrap;
   }
 
   .toolbar .cds--btn svg {
     width: 14px;
     height: 14px;
-    flex-shrink: 0;
-  }
-
-  .toolbar-group {
     flex-shrink: 0;
   }
 }

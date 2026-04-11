@@ -9,15 +9,23 @@ interface ActionSheetOption {
   onSelect: () => void;
 }
 
+interface ActionSheetSection {
+  title: string;
+  options: ActionSheetOption[];
+}
+
 interface ActionSheetProps {
   open: boolean;
   title: string;
   onClose: () => void;
-  options: ActionSheetOption[];
+  /** Flat list of options (no sections). */
+  options?: ActionSheetOption[];
+  /** Grouped options with section headers. Takes precedence over `options`. */
+  sections?: ActionSheetSection[];
 }
 
 /** Bottom-sheet style action picker for compact secondary workflows. */
-export default function ActionSheet({ open, title, onClose, options }: ActionSheetProps) {
+export default function ActionSheet({ open, title, onClose, options, sections }: ActionSheetProps) {
   useEffect(() => {
     if (!open) return;
 
@@ -33,6 +41,20 @@ export default function ActionSheet({ open, title, onClose, options }: ActionShe
 
   if (!open) return null;
 
+  const renderOption = (option: ActionSheetOption) => (
+    <button
+      key={option.id}
+      className={`action-sheet-option${option.tone === 'danger' ? ' danger' : ''}`}
+      onClick={() => {
+        option.onSelect();
+        onClose();
+      }}
+    >
+      <span className="action-sheet-label">{option.label}</span>
+      {option.description ? <span className="action-sheet-description">{option.description}</span> : null}
+    </button>
+  );
+
   return (
     <div className="action-sheet-root" role="presentation">
       <button className="action-sheet-backdrop" aria-label="Close actions" onClick={onClose} />
@@ -45,19 +67,14 @@ export default function ActionSheet({ open, title, onClose, options }: ActionShe
           </button>
         </div>
         <div className="action-sheet-options">
-          {options.map((option) => (
-            <button
-              key={option.id}
-              className={`action-sheet-option${option.tone === 'danger' ? ' danger' : ''}`}
-              onClick={() => {
-                option.onSelect();
-                onClose();
-              }}
-            >
-              <span className="action-sheet-label">{option.label}</span>
-              {option.description ? <span className="action-sheet-description">{option.description}</span> : null}
-            </button>
-          ))}
+          {sections
+            ? sections.map((section) => (
+                <div key={section.title} className="action-sheet-section">
+                  <div className="action-sheet-section-title">{section.title}</div>
+                  {section.options.map(renderOption)}
+                </div>
+              ))
+            : options?.map(renderOption)}
         </div>
       </div>
     </div>

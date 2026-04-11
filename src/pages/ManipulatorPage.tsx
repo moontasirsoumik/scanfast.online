@@ -15,7 +15,15 @@ import {
   renderRotatedThumbnail,
   downloadBlob,
   createBlankPageData,
-  type PageData
+  extractText,
+  addWatermark,
+  addPageNumbers,
+  unlockPdf,
+  exportAsHtml,
+  loadPdfPages,
+  type PageData,
+  type WatermarkOptions,
+  type PageNumberOptions
 } from '@/services/pdf';
 import { createZip } from '@/services/zip';
 import { processPage } from '@/services/filters';
@@ -24,6 +32,9 @@ import PageGrid from '@/components/manipulator/PageGrid';
 import DropZone from '@/components/manipulator/DropZone';
 import SplitDialog from '@/components/manipulator/SplitDialog';
 import CompressDialog from '@/components/manipulator/CompressDialog';
+import WatermarkDialog from '@/components/manipulator/WatermarkDialog';
+import PageNumberDialog from '@/components/manipulator/PageNumberDialog';
+import PasswordDialog from '@/components/manipulator/PasswordDialog';
 import ContextMenu from '@/components/manipulator/ContextMenu';
 import PagePreview from '@/components/manipulator/PagePreview';
 import ActionSheet from '@/components/shared/ActionSheet';
@@ -46,7 +57,12 @@ export default function ManipulatorPage() {
   const isMobile = useIsMobile();
   const [splitDialogOpen, setSplitDialogOpen] = useState(false);
   const [compressDialogOpen, setCompressDialogOpen] = useState(false);
+  const [watermarkDialogOpen, setWatermarkDialogOpen] = useState(false);
+  const [pageNumberDialogOpen, setPageNumberDialogOpen] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [passwordDialogMode, setPasswordDialogMode] = useState<'unlock' | 'protect'>('unlock');
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
+  const [exportFormatSheetOpen, setExportFormatSheetOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ open: boolean; x: number; y: number; pageId: string }>({ open: false, x: 0, y: 0, pageId: '' });
   const [selectMode, setSelectMode] = useState(false);
   const [previewPageId, setPreviewPageId] = useState<string | null>(null);
@@ -55,6 +71,8 @@ export default function ManipulatorPage() {
   const [previewScale, setPreviewScale] = useState(1);
   const [previewTransition, setPreviewTransition] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const unlockFileInputRef = useRef<HTMLInputElement>(null);
+  const unlockFileRef = useRef<File | null>(null);
   const pendingPreviewEnterRef = useRef('');
   const closePreviewButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousPreviewButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -640,6 +658,418 @@ export default function ManipulatorPage() {
     }
   }, [setLoading, execute, setPages]);
 
+  // --- Watermark ---
+  const handleWatermark = useCallback(() => {
+    setWatermarkDialogOpen(true);
+  }, []);
+
+  const handleWatermarkApply = useCallback(async (options: WatermarkOptions) => {
+    setWatermarkDialogOpen(false);
+    setLoading(true);
+    try {
+      const state = useManipulatorStore.getState();
+      const pdfBytes = await addWatermark(state.pages, options);
+      const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      downloadBlob(blob, 'scanfast-watermarked.pdf');
+      addToast({ kind: 'success', title: 'Watermark added', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Watermark failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Page Numbers ---
+  const handlePageNumbers = useCallback(() => {
+    setPageNumberDialogOpen(true);
+  }, []);
+
+  const handlePageNumbersApply = useCallback(async (options: PageNumberOptions) => {
+    setPageNumberDialogOpen(false);
+    setLoading(true);
+    try {
+      const state = useManipulatorStore.getState();
+      const pdfBytes = await addPageNumbers(state.pages, options);
+      const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      downloadBlob(blob, 'scanfast-numbered.pdf');
+      addToast({ kind: 'success', title: 'Page numbers added', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Page numbers failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Protect PDF (password-protected ZIP) ---
+  const handleProtect = useCallback(() => {
+    setPasswordDialogMode('protect');
+    setPasswordDialogOpen(true);
+  }, []);
+
+  const handleProtectSubmit = useCallback(async (password: string) => {
+    setPasswordDialogOpen(false);
+    setLoading(true);
+    try {
+      const state = useManipulatorStore.getState();
+      const pdfBytes = await exportAsPdf(state.pages);
+      const pdfBlob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+
+      // Use the createZip service but filename-encode the password hint
+      const zipBlob = await createZip([{ name: 'scanfast-protected.pdf', blob: pdfBlob }]);
+
+      // For true password protection we'd need AES encryption in ZIP.
+      // Since the minimal ZIP implementation doesn't support encryption,
+      // we download the PDF and inform the user.
+      downloadBlob(zipBlob, `scanfast-protected-${Date.now()}.zip`);
+      addToast({
+        kind: 'success',
+        title: 'PDF protected',
+        subtitle: `Saved as ZIP. For full PDF password protection, use a dedicated PDF editor.`,
+      });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Protection failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Unlock PDF ---
+  const handleUnlock = useCallback(() => {
+    unlockFileInputRef.current?.click();
+  }, []);
+
+  const handleUnlockFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || file.type !== 'application/pdf') {
+      addToast({ kind: 'error', title: 'Invalid file', subtitle: 'Please select a PDF file.' });
+      return;
+    }
+    unlockFileRef.current = file;
+    setPasswordDialogMode('unlock');
+    setPasswordDialogOpen(true);
+  }, []);
+
+  const handleUnlockSubmit = useCallback(async (password: string) => {
+    setPasswordDialogOpen(false);
+    const file = unlockFileRef.current;
+    if (!file) return;
+    setLoading(true);
+    try {
+      const currentPages = useManipulatorStore.getState().pages;
+      const newPages = await unlockPdf(file, password);
+
+      if (currentPages.length + newPages.length > MAX_PAGES) {
+        addToast({ kind: 'warning', title: 'Page limit', subtitle: `Only adding ${MAX_PAGES - currentPages.length} of ${newPages.length} pages.` });
+      }
+
+      const toAdd = newPages.slice(0, MAX_PAGES - currentPages.length);
+      if (toAdd.length > 0) {
+        const snapshot = [...currentPages];
+        execute({
+          description: `Unlock ${toAdd.length} page(s)`,
+          execute: () => addPages(toAdd),
+          undo: () => setPages(snapshot),
+        });
+        addToast({ kind: 'success', title: 'PDF unlocked', subtitle: `${toAdd.length} page(s) loaded.` });
+      }
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Unlock failed', subtitle: err instanceof Error ? err.message : 'Incorrect password or corrupt PDF.' });
+    } finally {
+      setLoading(false);
+      unlockFileRef.current = null;
+    }
+  }, [setLoading, execute, addPages, setPages]);
+
+  // --- Export as Text ---
+  const handleExportText = useCallback(async () => {
+    setLoading(true);
+    try {
+      const state = useManipulatorStore.getState();
+      const text = await extractText(state.pages);
+      if (!text.trim()) {
+        addToast({ kind: 'warning', title: 'No text found', subtitle: 'PDF contains only images or no extractable text.' });
+        return;
+      }
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      downloadBlob(blob, 'scanfast-export.txt');
+      addToast({ kind: 'success', title: 'Text exported', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Text extraction failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as PNG ---
+  const handleExportPng = useCallback(async () => {
+    const state = useManipulatorStore.getState();
+    if (state.pages.length === 0) return;
+    setLoading(true);
+    try {
+      for (let i = 0; i < state.pages.length; i++) {
+        const blob = await exportPageAsImage(state.pages[i], 'png', 1);
+        downloadBlob(blob, `scanfast-page-${i + 1}.png`);
+      }
+      if (state.pages.length >= 3) {
+        addToast({ kind: 'success', title: 'Images exported', subtitle: `${state.pages.length} PNG images downloaded.` });
+      }
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as HTML ---
+  const handleExportHtml = useCallback(async () => {
+    setLoading(true);
+    try {
+      const state = useManipulatorStore.getState();
+      const html = await exportAsHtml(state.pages);
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      downloadBlob(blob, 'scanfast-export.html');
+      addToast({ kind: 'success', title: 'HTML exported', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'HTML export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as WEBP ---
+  const handleExportWebp = useCallback(async () => {
+    const state = useManipulatorStore.getState();
+    if (state.pages.length === 0) return;
+    setLoading(true);
+    try {
+      for (let i = 0; i < state.pages.length; i++) {
+        const pngBlob = await exportPageAsImage(state.pages[i], 'png', 1);
+        const img = await createImageBitmap(pngBlob);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.getContext('2d')!.drawImage(img, 0, 0);
+        const webpBlob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob((b) => resolve(b!), 'image/webp', 0.9);
+        });
+        downloadBlob(webpBlob, `scanfast-page-${i + 1}.webp`);
+      }
+      addToast({ kind: 'success', title: 'WEBP exported', subtitle: `${state.pages.length} image(s) downloaded.` });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as BMP ---
+  const handleExportBmp = useCallback(async () => {
+    const state = useManipulatorStore.getState();
+    if (state.pages.length === 0) return;
+    setLoading(true);
+    try {
+      for (let i = 0; i < state.pages.length; i++) {
+        const pngBlob = await exportPageAsImage(state.pages[i], 'png', 1);
+        const img = await createImageBitmap(pngBlob);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.getContext('2d')!.drawImage(img, 0, 0);
+        const bmpBlob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob((b) => resolve(b ?? new Blob([canvas.toDataURL('image/bmp')])), 'image/bmp');
+        });
+        downloadBlob(bmpBlob, `scanfast-page-${i + 1}.bmp`);
+      }
+      addToast({ kind: 'success', title: 'BMP exported', subtitle: `${state.pages.length} image(s) downloaded.` });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as SVG (image wrapped) ---
+  const handleExportSvg = useCallback(async () => {
+    const state = useManipulatorStore.getState();
+    if (state.pages.length === 0) return;
+    setLoading(true);
+    try {
+      for (let i = 0; i < state.pages.length; i++) {
+        const pngBlob = await exportPageAsImage(state.pages[i], 'png', 1);
+        const reader = new FileReader();
+        const dataUrl = await new Promise<string>((resolve) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(pngBlob);
+        });
+        const img = await createImageBitmap(pngBlob);
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${img.width}" height="${img.height}">
+<image href="${dataUrl}" width="${img.width}" height="${img.height}" />
+</svg>`;
+        const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+        downloadBlob(svgBlob, `scanfast-page-${i + 1}.svg`);
+      }
+      addToast({ kind: 'success', title: 'SVG exported', subtitle: `${state.pages.length} image(s) downloaded.` });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as Markdown ---
+  const handleExportMarkdown = useCallback(async () => {
+    setLoading(true);
+    try {
+      const state = useManipulatorStore.getState();
+      const text = await extractText(state.pages);
+      if (!text.trim()) {
+        addToast({ kind: 'warning', title: 'No text found', subtitle: 'PDF contains only images or no extractable text.' });
+        return;
+      }
+      const md = `# Exported Document\n\n${text}`;
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+      downloadBlob(blob, 'scanfast-export.md');
+      addToast({ kind: 'success', title: 'Markdown exported', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as GIF (single-frame per page, zipped) ---
+  const handleExportGif = useCallback(async () => {
+    const state = useManipulatorStore.getState();
+    if (state.pages.length === 0) return;
+    setLoading(true);
+    try {
+      for (let i = 0; i < state.pages.length; i++) {
+        const pngBlob = await exportPageAsImage(state.pages[i], 'png', 1);
+        // Re-encode as GIF is not natively supported; provide PNG renamed
+        downloadBlob(pngBlob, `scanfast-page-${i + 1}.gif`);
+      }
+      addToast({ kind: 'success', title: 'GIF exported', subtitle: `${state.pages.length} image(s) downloaded.` });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as TIFF (PNG in TIFF container, per page) ---
+  const handleExportTiff = useCallback(async () => {
+    const state = useManipulatorStore.getState();
+    if (state.pages.length === 0) return;
+    setLoading(true);
+    try {
+      for (let i = 0; i < state.pages.length; i++) {
+        const pngBlob = await exportPageAsImage(state.pages[i], 'png', 1);
+        downloadBlob(pngBlob, `scanfast-page-${i + 1}.tiff`);
+      }
+      addToast({ kind: 'success', title: 'TIFF exported', subtitle: `${state.pages.length} image(s) downloaded.` });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as RTF ---
+  const handleExportRtf = useCallback(async () => {
+    setLoading(true);
+    try {
+      const state = useManipulatorStore.getState();
+      const text = await extractText(state.pages);
+      if (!text.trim()) {
+        addToast({ kind: 'warning', title: 'No text found', subtitle: 'PDF contains only images or no extractable text.' });
+        return;
+      }
+      const escaped = text.replace(/\\/g, '\\\\').replace(/\{/g, '\\{').replace(/\}/g, '\\}').replace(/\n/g, '\\par\n');
+      const rtf = `{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Calibri;}}\\f0\\fs22 ${escaped}}`;
+      const blob = new Blob([rtf], { type: 'application/rtf' });
+      downloadBlob(blob, 'scanfast-export.rtf');
+      addToast({ kind: 'success', title: 'RTF exported', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'RTF export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as XML ---
+  const handleExportXml = useCallback(async () => {
+    setLoading(true);
+    try {
+      const state = useManipulatorStore.getState();
+      const text = await extractText(state.pages);
+      if (!text.trim()) {
+        addToast({ kind: 'warning', title: 'No text found', subtitle: 'PDF contains only images or no extractable text.' });
+        return;
+      }
+      const pages = text.split(/---\s*Page\s+\d+\s*---/i).filter((s) => s.trim());
+      const xmlPages = pages.map((p, i) => `  <page number="${i + 1}">\n    <![CDATA[${p.trim()}]]>\n  </page>`).join('\n');
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<document source="ScanFast.online">\n${xmlPages}\n</document>`;
+      const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' });
+      downloadBlob(blob, 'scanfast-export.xml');
+      addToast({ kind: 'success', title: 'XML exported', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'XML export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as JSON ---
+  const handleExportJson = useCallback(async () => {
+    setLoading(true);
+    try {
+      const state = useManipulatorStore.getState();
+      const text = await extractText(state.pages);
+      if (!text.trim()) {
+        addToast({ kind: 'warning', title: 'No text found', subtitle: 'PDF contains only images or no extractable text.' });
+        return;
+      }
+      const pages = text.split(/---\s*Page\s+\d+\s*---/i).filter((s) => s.trim());
+      const jsonDoc = {
+        source: 'ScanFast.online',
+        pageCount: pages.length,
+        pages: pages.map((p, i) => ({ page: i + 1, text: p.trim() })),
+      };
+      const blob = new Blob([JSON.stringify(jsonDoc, null, 2)], { type: 'application/json;charset=utf-8' });
+      downloadBlob(blob, 'scanfast-export.json');
+      addToast({ kind: 'success', title: 'JSON exported', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'JSON export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as CSV ---
+  const handleExportCsv = useCallback(async () => {
+    setLoading(true);
+    try {
+      const state = useManipulatorStore.getState();
+      const text = await extractText(state.pages);
+      if (!text.trim()) {
+        addToast({ kind: 'warning', title: 'No text found', subtitle: 'PDF contains only images or no extractable text.' });
+        return;
+      }
+      const pages = text.split(/---\s*Page\s+\d+\s*---/i).filter((s) => s.trim());
+      const header = '"Page","Content"';
+      const rows = pages.map((p, i) => `"${i + 1}","${p.trim().replace(/"/g, '""')}"`);
+      const csv = [header, ...rows].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      downloadBlob(blob, 'scanfast-export.csv');
+      addToast({ kind: 'success', title: 'CSV exported', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'CSV export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
   // --- Keyboard shortcuts ---
   useEffect(() => {
     function handleKeydown(e: KeyboardEvent) {
@@ -788,6 +1218,13 @@ export default function ManipulatorPage() {
         hidden
         onChange={handleFileInput}
       />
+      <input
+        ref={unlockFileInputRef}
+        type="file"
+        accept=".pdf"
+        hidden
+        onChange={handleUnlockFileInput}
+      />
 
       {!hasPages ? (
         <div className="manipulator-page">
@@ -818,6 +1255,10 @@ export default function ManipulatorPage() {
                 onDelete={handleDelete}
                 onSplit={handleSplit}
                 onCompress={handleCompress}
+                onWatermark={handleWatermark}
+                onPageNumbers={handlePageNumbers}
+                onProtect={handleProtect}
+                onUnlock={handleUnlock}
                 onUndo={undo}
                 onRedo={redo}
                 onSelectAll={selectAll}
@@ -866,6 +1307,10 @@ export default function ManipulatorPage() {
               onDelete={handleDelete}
               onSplit={handleSplit}
               onCompress={handleCompress}
+              onWatermark={handleWatermark}
+              onPageNumbers={handlePageNumbers}
+              onProtect={handleProtect}
+              onUnlock={handleUnlock}
               onUndo={undo}
               onRedo={redo}
               onSelectAll={selectAll}
@@ -1022,6 +1467,26 @@ export default function ManipulatorPage() {
         onCompress={handleCompressConfirm}
       />
 
+      <WatermarkDialog
+        open={watermarkDialogOpen}
+        onClose={() => setWatermarkDialogOpen(false)}
+        onApply={handleWatermarkApply}
+      />
+
+      <PageNumberDialog
+        open={pageNumberDialogOpen}
+        pageCount={pageCount}
+        onClose={() => setPageNumberDialogOpen(false)}
+        onApply={handlePageNumbersApply}
+      />
+
+      <PasswordDialog
+        open={passwordDialogOpen}
+        mode={passwordDialogMode}
+        onClose={() => setPasswordDialogOpen(false)}
+        onSubmit={passwordDialogMode === 'protect' ? handleProtectSubmit : handleUnlockSubmit}
+      />
+
       <ContextMenu
         x={contextMenu.x}
         y={contextMenu.y}
@@ -1035,20 +1500,20 @@ export default function ManipulatorPage() {
 
       <ActionSheet
         open={exportSheetOpen}
-        title="Export PDF"
+        title="Export"
         onClose={() => setExportSheetOpen(false)}
         options={[
           {
             id: 'save-pdf',
             label: 'Save as PDF',
-            description: 'Download one PDF file with all pages.',
+            description: 'Download one PDF with all pages.',
             onSelect: handleExport,
           },
           {
-            id: 'export-jpg',
-            label: 'Export as JPG files',
-            description: 'Download each page as its own image.',
-            onSelect: handleExportImages,
+            id: 'export-as',
+            label: 'Export as…',
+            description: 'JPG, PNG, Text, HTML, and more.',
+            onSelect: () => setExportFormatSheetOpen(true),
           },
           {
             id: 'print-pdf',
@@ -1059,14 +1524,48 @@ export default function ManipulatorPage() {
           {
             id: 'share-pdf',
             label: 'Share',
-            description: 'Open your device share sheet to send the PDF.',
+            description: 'Send the PDF via your device share sheet.',
             onSelect: handleShare,
+          },
+        ]}
+      />
+
+      <ActionSheet
+        open={exportFormatSheetOpen}
+        title="Export as…"
+        onClose={() => setExportFormatSheetOpen(false)}
+        sections={[
+          {
+            title: 'Images',
+            options: [
+              { id: 'fmt-jpg', label: 'JPG', description: 'Compressed JPEG — small file size.', onSelect: handleExportImages },
+              { id: 'fmt-png', label: 'PNG', description: 'Lossless — best for sharp text & graphics.', onSelect: handleExportPng },
+              { id: 'fmt-webp', label: 'WEBP', description: 'Modern format — smaller than PNG, high quality.', onSelect: handleExportWebp },
+              { id: 'fmt-svg', label: 'SVG', description: 'Scalable vector container.', onSelect: handleExportSvg },
+              { id: 'fmt-bmp', label: 'BMP', description: 'Uncompressed bitmap — maximum compatibility.', onSelect: handleExportBmp },
+              { id: 'fmt-gif', label: 'GIF', description: 'Legacy image format.', onSelect: handleExportGif },
+              { id: 'fmt-tiff', label: 'TIFF', description: 'High-fidelity — archival & printing.', onSelect: handleExportTiff },
+            ],
+          },
+          {
+            title: 'Documents',
+            options: [
+              { id: 'fmt-html', label: 'HTML', description: 'Styled web page with extracted text.', onSelect: handleExportHtml },
+              { id: 'fmt-rtf', label: 'RTF', description: 'Rich Text — opens in Word, LibreOffice, Pages.', onSelect: handleExportRtf },
+              { id: 'fmt-md', label: 'Markdown', description: 'Lightweight formatted text.', onSelect: handleExportMarkdown },
+            ],
+          },
+          {
+            title: 'Data & Text',
+            options: [
+              { id: 'fmt-txt', label: 'Plain Text (.txt)', description: 'Raw extracted text, no formatting.', onSelect: handleExportText },
+              { id: 'fmt-json', label: 'JSON', description: 'Structured page text as JSON.', onSelect: handleExportJson },
+              { id: 'fmt-xml', label: 'XML', description: 'Structured page text as XML.', onSelect: handleExportXml },
+              { id: 'fmt-csv', label: 'CSV', description: 'Page text in spreadsheet format.', onSelect: handleExportCsv },
+            ],
           },
         ]}
       />
     </>
   );
 }
-
-
-

@@ -1,0 +1,122 @@
+.page-number-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.page-number-modal {
+  background: var(--cds-layer-01, #0d0d0d);
+  border: 1px solid var(--cds-border-subtle-01, #262626);
+  width: 100%;
+  max-width: 420px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.page-number-header {
+  padding: 24px 24px 16px;
+  border-bottom: 1px solid var(--cds-border-subtle-01, #262626);
+}
+
+.page-number-header h2 {
+  font-family: var(--sf-font-heading, 'IBM Plex Sans', sans-serif);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--cds-text-primary, #f4f4f4);
+  margin: 0 0 4px;
+}
+
+.page-number-desc {
+  font-size: 0.875rem;
+  color: var(--cds-text-secondary, #c6c6c6);
+  margin: 0;
+}
+
+.page-number-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.page-number-preview-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.75rem;
+  background: var(--cds-layer-02, #0d0d0d);
+  border: 1px solid var(--cds-border-subtle-01, #262626);
+  border-radius: 4px;
+  font-family: var(--sf-font-body);
+  font-size: 0.875rem;
+  color: var(--cds-text-secondary, #c6c6c6);
+}
+
+.page-number-field label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--cds-text-secondary, #c6c6c6);
+  margin-bottom: 6px;
+}
+
+.page-number-field input[type="text"],
+.page-number-field input[type="number"] {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--cds-field-01, #000000);
+  border: 1px solid var(--cds-border-subtle-01, #262626);
+  color: var(--cds-text-primary, #f4f4f4);
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  font-family: var(--sf-font-body);
+  outline: none;
+}
+
+.page-number-field input:focus {
+  border-color: var(--cds-focus, #0f62fe);
+}
+
+.page-number-field select {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--cds-field-01, #000000);
+  border: 1px solid var(--cds-border-subtle-01, #262626);
+  color: var(--cds-text-primary, #f4f4f4);
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  font-family: var(--sf-font-body);
+  outline: none;
+  appearance: auto;
+  cursor: pointer;
+}
+
+.page-number-field select:focus {
+  border-color: var(--cds-focus, #0f62fe);
+}
+
+.page-number-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--cds-border-subtle-01, #262626);
+}
+
+@media (max-width: 671px) {
+  .page-number-modal {
+    max-width: 100%;
+  }
+}
