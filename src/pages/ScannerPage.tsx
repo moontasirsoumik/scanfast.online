@@ -165,8 +165,10 @@ export default function ScannerPage() {
   }, [currentImage, currentFilter, currentRotation, currentStraighten, currentFlipH, currentFlipV, currentPerspectiveH, currentPerspectiveV]);
 
   useEffect(() => {
-    setDraftCrop(currentCrop);
-  }, [currentCrop, currentImage, editingPageId]);
+    if (!cropMode) {
+      setDraftCrop(currentCrop);
+    }
+  }, [cropMode, currentCrop, currentImage, editingPageId]);
 
   // --- Handlers ---
   const handleCapture = useCallback(async (blob: Blob, detectedQuad?: QuadCrop | null) => {
@@ -181,12 +183,16 @@ export default function ScannerPage() {
       const orientation = await readExifOrientation(scaled);
       const degrees = exifOrientationToDegrees(orientation);
 
-      // Run full-resolution detection when auto-crop is active.
+      // Use live-detected quad directly when provided (already good quality from stabilized live detection).
+      // Only run HQ detection for gallery imports (detectedQuad === undefined) where we have no live result.
       // detectedQuad === null means user had auto-crop off; undefined means gallery import.
       let cropQuad: QuadCrop | null = null;
-      if (detectedQuad !== null) {
-        const detectedFromCapture = await detectDocumentFromBlob(scaled);
-        cropQuad = detectedFromCapture ?? detectedQuad ?? null;
+      if (detectedQuad === undefined) {
+        // Gallery import — no live quad, run detection now
+        cropQuad = await detectDocumentFromBlob(scaled);
+      } else if (detectedQuad !== null) {
+        // Live capture with auto-crop — trust the stabilized live quad directly
+        cropQuad = detectedQuad;
       }
 
       const result = await processPage(scaled, 'original', degrees, cropQuad, 0);
@@ -383,13 +389,19 @@ export default function ScannerPage() {
     setCropMode(false);
   }, [currentCrop]);
 
+  const applyCropTransform = useCallback((transform: (quad: QuadCrop) => QuadCrop) => {
+    const sourceCrop = draftCrop ?? useScannerStore.getState().currentCrop;
+    if (!sourceCrop) return;
+
+    const nextCrop = transform(sourceCrop);
+    setCrop(nextCrop);
+    setDraftCrop(nextCrop);
+  }, [draftCrop, setCrop]);
+
   /** Rotate crop quad to match new image rotation */
   const handleRotate = useCallback((newDeg: number) => {
     const oldDeg = useScannerStore.getState().currentRotation;
-    const crop = useScannerStore.getState().currentCrop;
     setRotation(newDeg);
-
-    if (!crop) return;
 
     const delta = ((newDeg - oldDeg) % 360 + 360) % 360;
     if (delta === 0) return;
@@ -408,19 +420,16 @@ export default function ScannerPage() {
     const steps = delta === 90 ? 1 : delta === 180 ? 2 : delta === 270 ? 3 : 0;
     if (steps === 0) return;
 
-    const transformQuad = (q: QuadCrop): QuadCrop => ({
-      tl: rotatePt(q.tl, steps),
-      tr: rotatePt(q.tr, steps),
-      br: rotatePt(q.br, steps),
-      bl: rotatePt(q.bl, steps),
-    });
+    // Relabel corners so labels match their new visual position after rotation.
+    // 90° CW: old bl→new tl, old tl→new tr, old tr→new br, old br→new bl
+    const transformQuad = (q: QuadCrop): QuadCrop => {
+      if (steps === 1) return { tl: rotatePt(q.bl, 1), tr: rotatePt(q.tl, 1), br: rotatePt(q.tr, 1), bl: rotatePt(q.br, 1) };
+      if (steps === 2) return { tl: rotatePt(q.br, 2), tr: rotatePt(q.bl, 2), br: rotatePt(q.tl, 2), bl: rotatePt(q.tr, 2) };
+      return { tl: rotatePt(q.tr, 3), tr: rotatePt(q.br, 3), br: rotatePt(q.bl, 3), bl: rotatePt(q.tl, 3) };
+    };
 
-    const newCrop = transformQuad(crop);
-    setCrop(newCrop);
-
-    // Also transform draftCrop so unconfirmed edits follow the rotation
-    setDraftCrop((prev) => prev ? transformQuad(prev) : prev);
-  }, [setRotation, setCrop]);
+    applyCropTransform(transformQuad);
+  }, [applyCropTransform, setRotation]);
 
   const handleEditPage = useCallback((id: string) => {
     setPreviewScale(1.0);
@@ -935,8 +944,28 @@ export default function ScannerPage() {
                   onReset={cropHistory.reset}
                   onRotate={handleRotate}
                   onStraightenChange={(v: number) => setStraighten(v)}
-                  onFlipH={() => setFlipH(!currentFlipH)}
-                  onFlipV={() => setFlipV(!currentFlipV)}
+                  onFlipH={() => {
+                    const rot = ((useScannerStore.getState().currentRotation % 360) + 360) % 360;
+                    setFlipH(!currentFlipH);
+
+                    // FlipH in pre-rotation space = mirrorH at 0°/180°, mirrorV at 90°/270°
+                    const useVertical = rot === 90 || rot === 270;
+                    const transform = (q: QuadCrop): QuadCrop => useVertical
+                      ? { tl: { x: q.bl.x, y: 1 - q.bl.y }, tr: { x: q.br.x, y: 1 - q.br.y }, br: { x: q.tr.x, y: 1 - q.tr.y }, bl: { x: q.tl.x, y: 1 - q.tl.y } }
+                      : { tl: { x: 1 - q.tr.x, y: q.tr.y }, tr: { x: 1 - q.tl.x, y: q.tl.y }, br: { x: 1 - q.bl.x, y: q.bl.y }, bl: { x: 1 - q.br.x, y: q.br.y } };
+                    applyCropTransform(transform);
+                  }}
+                  onFlipV={() => {
+                    const rot = ((useScannerStore.getState().currentRotation % 360) + 360) % 360;
+                    setFlipV(!currentFlipV);
+
+                    // FlipV in pre-rotation space = mirrorV at 0°/180°, mirrorH at 90°/270°
+                    const useHorizontal = rot === 90 || rot === 270;
+                    const transform = (q: QuadCrop): QuadCrop => useHorizontal
+                      ? { tl: { x: 1 - q.tr.x, y: q.tr.y }, tr: { x: 1 - q.tl.x, y: q.tl.y }, br: { x: 1 - q.bl.x, y: q.bl.y }, bl: { x: 1 - q.br.x, y: q.br.y } }
+                      : { tl: { x: q.bl.x, y: 1 - q.bl.y }, tr: { x: q.br.x, y: 1 - q.br.y }, br: { x: q.tr.x, y: 1 - q.tr.y }, bl: { x: q.tl.x, y: 1 - q.tl.y } };
+                    applyCropTransform(transform);
+                  }}
                   onPerspectiveHChange={(v: number) => setPerspectiveH(v)}
                   onPerspectiveVChange={(v: number) => setPerspectiveV(v)}
                   onChange={(crop: QuadCrop) => setDraftCrop(crop)}

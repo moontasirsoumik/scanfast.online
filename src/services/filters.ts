@@ -823,64 +823,57 @@ export async function processPage(
 ): Promise<{ dataUrl: string; thumbnail: string }> {
 	const img = await loadImage(blob);
 
-	// --- Step 1: Perspective crop ---
-	let croppedCanvas: HTMLCanvasElement;
-	if (crop) {
-		const tmpCanvas = document.createElement('canvas');
-		tmpCanvas.width = img.width;
-		tmpCanvas.height = img.height;
-		const tmpCtx = getContext(tmpCanvas);
-		tmpCtx.drawImage(img, 0, 0);
-		croppedCanvas = perspectiveCorrect(tmpCanvas, crop, img.width, img.height);
-	} else {
-		croppedCanvas = document.createElement('canvas');
-		croppedCanvas.width = img.width;
-		croppedCanvas.height = img.height;
-		const tmpCtx = getContext(croppedCanvas);
-		tmpCtx.drawImage(img, 0, 0);
-	}
+	let canvas = document.createElement('canvas');
+	canvas.width = img.width;
+	canvas.height = img.height;
+	let ctx = getContext(canvas);
+	ctx.drawImage(img, 0, 0);
 
-	// --- Step 1b: Perspective H/V keystone correction ---
+	// --- Step 1: Perspective H/V keystone correction ---
 	if (adjustments.perspectiveH !== 0 || adjustments.perspectiveV !== 0) {
-		croppedCanvas = applyKeystoneCorrection(croppedCanvas, adjustments.perspectiveH, adjustments.perspectiveV);
+		canvas = applyKeystoneCorrection(canvas, adjustments.perspectiveH, adjustments.perspectiveV);
+		ctx = getContext(canvas);
 	}
 
-	// --- Step 1c: Flip H/V ---
+	// --- Step 1b: Flip H/V ---
 	if (adjustments.flipH || adjustments.flipV) {
 		const fCanvas = document.createElement('canvas');
-		fCanvas.width = croppedCanvas.width;
-		fCanvas.height = croppedCanvas.height;
+		fCanvas.width = canvas.width;
+		fCanvas.height = canvas.height;
 		const fCtx = getContext(fCanvas);
 		fCtx.save();
 		fCtx.translate(
-			adjustments.flipH ? croppedCanvas.width : 0,
-			adjustments.flipV ? croppedCanvas.height : 0
+			adjustments.flipH ? canvas.width : 0,
+			adjustments.flipV ? canvas.height : 0
 		);
 		fCtx.scale(adjustments.flipH ? -1 : 1, adjustments.flipV ? -1 : 1);
-		fCtx.drawImage(croppedCanvas, 0, 0);
+		fCtx.drawImage(canvas, 0, 0);
 		fCtx.restore();
-		croppedCanvas = fCanvas;
+		canvas = fCanvas;
+		ctx = getContext(canvas);
 	}
 
-	const cW = croppedCanvas.width;
-	const cH = croppedCanvas.height;
-
 	// --- Step 2: Rotate ---
+	const cW = canvas.width;
+	const cH = canvas.height;
 	const normalizedRotation = ((rotation % 360) + 360) % 360;
 	const swapDimensions = normalizedRotation === 90 || normalizedRotation === 270;
-	const outW = swapDimensions ? cH : cW;
-	const outH = swapDimensions ? cW : cH;
+	let outW = swapDimensions ? cH : cW;
+	let outH = swapDimensions ? cW : cH;
 
-	const canvas = document.createElement('canvas');
-	canvas.width = outW;
-	canvas.height = outH;
-	const ctx = getContext(canvas);
-
-	ctx.save();
-	ctx.translate(outW / 2, outH / 2);
-	ctx.rotate((normalizedRotation * Math.PI) / 180);
-	ctx.drawImage(croppedCanvas, -cW / 2, -cH / 2);
-	ctx.restore();
+	if (normalizedRotation !== 0) {
+		const rotCanvas = document.createElement('canvas');
+		rotCanvas.width = outW;
+		rotCanvas.height = outH;
+		const rotCtx = getContext(rotCanvas);
+		rotCtx.save();
+		rotCtx.translate(outW / 2, outH / 2);
+		rotCtx.rotate((normalizedRotation * Math.PI) / 180);
+		rotCtx.drawImage(canvas, -cW / 2, -cH / 2);
+		rotCtx.restore();
+		canvas = rotCanvas;
+		ctx = getContext(canvas);
+	}
 
 	// --- Step 2b: Fine straighten ---
 	if (straighten !== 0) {
@@ -904,9 +897,18 @@ export async function processPage(
 		// Crop back to original dimensions from center
 		canvas.width = outW;
 		canvas.height = outH;
+		ctx = getContext(canvas);
 		const cropX = (newW - outW) / 2;
 		const cropY = (newH - outH) / 2;
 		ctx.drawImage(tempCanvas, cropX, cropY, outW, outH, 0, 0, outW, outH);
+	}
+
+	// --- Step 3: Perspective crop (applied AFTER flip/rotate so coordinates match displayed image) ---
+	if (crop) {
+		canvas = perspectiveCorrect(canvas, crop, canvas.width, canvas.height);
+		ctx = getContext(canvas);
+		outW = canvas.width;
+		outH = canvas.height;
 	}
 
 	// --- Step 3: Filter ---

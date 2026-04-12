@@ -1,7 +1,7 @@
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 0;
   padding: 8px 0;
   border-top: 1px solid var(--cds-border-subtle-01, #262626);
   border-bottom: 1px solid var(--cds-border-subtle-01, #262626);
@@ -18,25 +18,65 @@
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x;
   flex-wrap: nowrap;
+  padding: 0 2px;
 }
 
-/* Thin scrollbar on desktop */
+/* Hide scrollbar everywhere */
 .toolbar-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: var(--cds-border-subtle-01, #262626) transparent;
+  scrollbar-width: none;
 }
 .toolbar-scroll::-webkit-scrollbar {
-  height: 4px;
+  display: none;
 }
-.toolbar-scroll::-webkit-scrollbar-track {
-  background: transparent;
+
+/* ── Scroll arrow buttons (desktop only) ── */
+.toolbar-arrow {
+  display: none; /* hidden on mobile — touch scroll handles it */
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 0;
+  height: 28px;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--sf-radius-sm, 8px);
+  background: var(--cds-layer-02, #1a1a1a);
+  color: var(--cds-text-secondary, #c6c6c6);
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    width 180ms ease,
+    opacity 180ms ease,
+    margin 180ms ease,
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
 }
-.toolbar-scroll::-webkit-scrollbar-thumb {
-  background: var(--cds-border-subtle-01, #393939);
-  border-radius: 2px;
+
+.toolbar-arrow svg {
+  display: block;
+  flex-shrink: 0;
 }
-.toolbar-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--cds-text-secondary, #6f6f6f);
+
+.toolbar-arrow--visible {
+  width: 28px;
+  border: 1px solid var(--cds-border-subtle-02, #393939);
+  opacity: 1;
+  pointer-events: auto;
+  margin: 0 3px;
+}
+
+.toolbar-arrow:hover {
+  background: var(--cds-layer-hover-01, #262626);
+  color: var(--cds-text-primary, #f4f4f4);
+  border-color: var(--cds-border-strong-01, #525252);
+}
+
+.toolbar-arrow:active {
+  background: var(--cds-layer-active-01, #393939);
 }
 
 .toolbar-group {
@@ -48,7 +88,7 @@
 
 .toolbar-group--history {
   flex-shrink: 0;
-  margin-left: auto;
+  margin-left: 4px;
   border-left: 1px solid var(--cds-border-subtle-01, #262626);
   padding-left: 4px;
 }
@@ -64,6 +104,12 @@
 .toolbar .cds--btn {
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+@media (min-width: 672px) {
+  .toolbar-arrow {
+    display: flex;
+  }
 }
 
 @media (max-width: 671px) {
