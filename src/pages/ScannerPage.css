@@ -10,7 +10,9 @@
 .scanner-page {
   max-width: 1312px;
   margin: 0 auto;
+  min-height: calc(100vh - 48px - var(--sf-mobile-nav-height, 0px));
   padding: 0 1rem;
+  background: var(--cds-background);
 }
 
 @media (min-width: 672px) {
@@ -146,6 +148,7 @@
   display: flex;
   flex-direction: column;
   height: calc(100vh - 48px - var(--sf-mobile-nav-height, 0px));
+  background: var(--cds-background);
   transition: height 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -162,7 +165,7 @@ body.sf-crop-focus-mode .preview-layout {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--cds-layer-01, #0d0d0d);
+  background: var(--cds-background);
   overflow: hidden;
   touch-action: none;
 }
@@ -394,6 +397,7 @@ body.sf-crop-focus-mode .preview-actions-wrapper {
   max-width: 1312px;
   margin: 0 auto;
   padding: 0 0.875rem;
+  background: var(--cds-background);
 }
 
 @media (min-width: 672px) {
