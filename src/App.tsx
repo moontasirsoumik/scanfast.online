@@ -59,6 +59,8 @@ export default function App() {
     const handler = (event: BeforeUnloadEvent) => {
       if (hasUnsavedWork) {
         event.preventDefault();
+        // Required for older browsers (Chrome <119, some mobile browsers)
+        event.returnValue = '';
       }
     };
 

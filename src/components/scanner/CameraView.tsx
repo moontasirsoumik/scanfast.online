@@ -49,6 +49,7 @@ export default function CameraView({ onCapture, onClose }: CameraViewProps) {
   const streamRef = useRef<MediaStream | null>(null);
   const detectionRafRef = useRef<number>(0);
   const lastQuadRef = useRef<QuadCrop | null>(null);
+  const pauseDetectionRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [multipleDevices, setMultipleDevices] = useState(false);
@@ -174,7 +175,7 @@ export default function CameraView({ onCapture, onClose }: CameraViewProps) {
     const detectLoop = (time: number) => {
       if (!running) return;
 
-      if (time - lastDetectTime >= DETECT_INTERVAL) {
+      if (!pauseDetectionRef.current && time - lastDetectTime >= DETECT_INTERVAL) {
         lastDetectTime = time;
         const video = videoRef.current;
         if (video && video.readyState >= 2 && video.videoWidth > 0) {
@@ -196,58 +197,50 @@ export default function CameraView({ onCapture, onClose }: CameraViewProps) {
     };
   }, [autoCrop]);
 
-  const animateCaptureToButton = useCallback((onComplete: () => void, previewUrl: string) => {
+  const animateCaptureToButton = useCallback((onComplete: () => void, previewEl: HTMLImageElement) => {
     const container = cameraViewRef.current;
     if (!container) { onComplete(); return; }
 
+    pauseDetectionRef.current = true;
+
+    // Compute fly vector to Done button
+    const doneBtn = doneBtnRef.current;
     const containerRect = container.getBoundingClientRect();
+    let dx = 0, dy = 0;
+    if (doneBtn) {
+      const btnRect = doneBtn.getBoundingClientRect();
+      dx = (btnRect.left - containerRect.left + btnRect.width / 2) - containerRect.width / 2;
+      dy = (btnRect.top - containerRect.top + btnRect.height / 2) - containerRect.height / 2;
+    }
 
-    // Single element: preview with thick white border that flies to Done
-    const preview = document.createElement('img');
-    preview.src = previewUrl;
-    preview.className = 'capture-preview-card';
-    container.appendChild(preview);
+    // Phase 1: snap-in (scale 0.85→1, fade in) — starts THIS frame
+    previewEl.style.opacity = '0';
+    previewEl.style.transform = 'translate(-50%, -50%) scale(0.82)';
+    previewEl.getBoundingClientRect(); // flush layout so start state applies
+    previewEl.style.transition = 'transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 180ms ease-out';
+    previewEl.style.transform = 'translate(-50%, -50%) scale(1)';
+    previewEl.style.opacity = '1';
 
-    // Phase 1: Show preview briefly (already visible via CSS animation)
-    // Phase 2: Shrink and fly to Done button
+    // Phase 2: fly to Done button after hold
     setTimeout(() => {
-      const doneBtn = doneBtnRef.current;
+      // opacity delay so it stays visible most of the flight, fades only at the end
+      previewEl.style.transition = 'transform 360ms cubic-bezier(0.55, 0, 1, 1), opacity 140ms 220ms ease-in';
+      previewEl.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.05)`;
+      previewEl.style.opacity = '0';
+    }, 420);
+
+    // Fire processing so count updates right as the pulse starts (~170ms to addPage)
+    // Cleanup + pulse when card arrives at button, then trigger processing
+    setTimeout(() => {
+      previewEl.remove();
+      pauseDetectionRef.current = false;
       if (doneBtn) {
-        const freshRect = container.getBoundingClientRect();
-        const btnRect = doneBtn.getBoundingClientRect();
-        const targetX = btnRect.left - freshRect.left + btnRect.width / 2;
-        const targetY = btnRect.top - freshRect.top + btnRect.height / 2;
-
-        preview.style.transition = 'all 550ms cubic-bezier(0.16, 1, 0.3, 1)';
-        preview.style.left = `${targetX}px`;
-        preview.style.top = `${targetY}px`;
-        preview.style.maxWidth = '36px';
-        preview.style.maxHeight = '36px';
-        preview.style.opacity = '0.3';
-        preview.style.borderRadius = '10px';
-        preview.style.borderWidth = '2px';
-      } else {
-        preview.style.transition = 'all 550ms cubic-bezier(0.16, 1, 0.3, 1)';
-        preview.style.opacity = '0';
-        preview.style.maxWidth = '36px';
-        preview.style.maxHeight = '36px';
+        doneBtn.classList.add('done-btn--pulse');
+        setTimeout(() => doneBtn.classList.remove('done-btn--pulse'), 500);
       }
-
-      let cleaned = false;
-      const cleanup = () => {
-        if (cleaned) return;
-        cleaned = true;
-        preview.remove();
-        onComplete();
-        const doneBtn = doneBtnRef.current;
-        if (doneBtn) {
-          doneBtn.classList.add('done-btn--pulse');
-          setTimeout(() => doneBtn.classList.remove('done-btn--pulse'), 500);
-        }
-      };
-      preview.addEventListener('transitionend', cleanup, { once: true });
-      setTimeout(cleanup, 800);
-    }, 350);
+      // Fire after pulse starts so increment lands during the pulse animation
+      onComplete();
+    }, 820);
   }, []);
 
   const handleCapture = async () => {
@@ -266,54 +259,52 @@ export default function CameraView({ onCapture, onClose }: CameraViewProps) {
         await setTorch(streamRef.current!, true);
         await new Promise((r) => setTimeout(r, 400));
       }
-      const blob = await captureFrame(videoRef.current);
-      if (needsAutoFlash) {
-        await setTorch(streamRef.current!, false);
-      }
+
       triggerHaptic();
       const capturedQuad = autoCrop ? lastQuadRef.current : null;
 
-      // Generate preview: cropped if auto-crop, full frame if not
-      const rawCanvas = document.createElement('canvas');
-      rawCanvas.width = videoRef.current.videoWidth;
-      rawCanvas.height = videoRef.current.videoHeight;
-      const rawCtx = rawCanvas.getContext('2d');
-      if (rawCtx) rawCtx.drawImage(videoRef.current, 0, 0);
+      // Show preview INSTANTLY from the live video frame (before blob encoding)
+      const video = videoRef.current;
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      const thumbScale = Math.min(200 / vw, 200 / vh, 1);
+      const thumbW = Math.round(vw * thumbScale);
+      const thumbH = Math.round(vh * thumbScale);
+      const thumbCanvas = document.createElement('canvas');
+      thumbCanvas.width = thumbW;
+      thumbCanvas.height = thumbH;
+      const thumbCtx = thumbCanvas.getContext('2d');
+      if (thumbCtx) thumbCtx.drawImage(video, 0, 0, thumbW, thumbH);
 
-      let previewUrl: string;
-      if (capturedQuad) {
-        // Draw just the cropped quad region for preview
-        const q = capturedQuad;
-        const vw = rawCanvas.width;
-        const vh = rawCanvas.height;
-        const tl = { x: q.tl.x * vw, y: q.tl.y * vh };
-        const tr = { x: q.tr.x * vw, y: q.tr.y * vh };
-        const br = { x: q.br.x * vw, y: q.br.y * vh };
-        const bl = { x: q.bl.x * vw, y: q.bl.y * vh };
-        // Bounding box of the quad
-        const minX = Math.max(0, Math.floor(Math.min(tl.x, tr.x, br.x, bl.x)));
-        const minY = Math.max(0, Math.floor(Math.min(tl.y, tr.y, br.y, bl.y)));
-        const maxX = Math.min(vw, Math.ceil(Math.max(tl.x, tr.x, br.x, bl.x)));
-        const maxY = Math.min(vh, Math.ceil(Math.max(tl.y, tr.y, br.y, bl.y)));
-        const cropW = maxX - minX;
-        const cropH = maxY - minY;
-        if (cropW > 0 && cropH > 0) {
-          const cropCanvas = document.createElement('canvas');
-          cropCanvas.width = cropW;
-          cropCanvas.height = cropH;
-          const cropCtx = cropCanvas.getContext('2d');
-          if (cropCtx) {
-            cropCtx.drawImage(rawCanvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
-          }
-          previewUrl = cropCanvas.toDataURL('image/jpeg', 0.5);
-        } else {
-          previewUrl = rawCanvas.toDataURL('image/jpeg', 0.5);
-        }
-      } else {
-        previewUrl = rawCanvas.toDataURL('image/jpeg', 0.5);
-      }
+      // Size the preview card to match the video aspect ratio
+      const container = cameraViewRef.current!;
+      const containerRect = container.getBoundingClientRect();
+      const maxW = containerRect.width * 0.75;
+      const maxH = containerRect.height * 0.6;
+      const fitScale = Math.min(maxW / vw, maxH / vh);
+      const cardW = Math.round(vw * fitScale);
+      const cardH = Math.round(vh * fitScale);
 
-      animateCaptureToButton(() => onCapture(blob, capturedQuad), previewUrl);
+      const previewEl = document.createElement('img');
+      previewEl.src = thumbCanvas.toDataURL('image/jpeg', 0.4);
+      previewEl.className = 'capture-preview-card';
+      previewEl.style.width = `${cardW}px`;
+      previewEl.style.height = `${cardH}px`;
+      container.appendChild(previewEl);
+
+      // Start blob encoding in background — don't block the animation
+      const blobPromise = captureFrame(video);
+
+      // Start animation IMMEDIATELY (before blob finishes)
+      animateCaptureToButton(() => {
+        blobPromise.then(async (blob) => {
+          if (needsAutoFlash) await setTorch(streamRef.current!, false);
+          onCapture(blob, capturedQuad);
+        }).catch(() => {});
+      }, previewEl);
+
+      // Wait for blob so isCapturing stays true until next capture is safe
+      await blobPromise.catch(() => {});
     } finally {
       setIsCapturing(false);
     }
