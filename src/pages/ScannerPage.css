@@ -365,6 +365,15 @@ body.sf-crop-focus-mode .preview-actions-wrapper {
   justify-content: center;
 }
 
+.preview-actions .cds--btn.sf-action-active {
+  background: var(--cds-layer-selected-01);
+  color: var(--cds-text-primary);
+}
+
+.preview-actions .cds--btn.sf-action-active:hover {
+  background: var(--cds-layer-hover-01);
+}
+
 /* Slide-in animation for panel swap */
 @keyframes sf-panel-slide-in {
   from {
