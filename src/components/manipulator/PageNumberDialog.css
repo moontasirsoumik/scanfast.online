@@ -12,6 +12,7 @@
 .page-number-modal {
   background: var(--cds-layer-01, #0d0d0d);
   border: 1px solid var(--cds-border-subtle-01, #262626);
+  border-radius: var(--sf-radius-lg, 16px);
   width: 100%;
   max-width: 420px;
   max-height: 85vh;
@@ -56,7 +57,7 @@
   padding: 0.75rem;
   background: var(--cds-layer-02, #0d0d0d);
   border: 1px solid var(--cds-border-subtle-01, #262626);
-  border-radius: 4px;
+  border-radius: var(--sf-radius-sm, 8px);
   font-family: var(--sf-font-body);
   font-size: 0.875rem;
   color: var(--cds-text-secondary, #c6c6c6);

@@ -279,9 +279,49 @@ code, pre, .cds--snippet {
 	border-radius: var(--sf-radius-sm);
 }
 
-/* ── Border radius: Modals ── */
+/* ── Border radius: Modals (Carbon + custom) ── */
 .cds--modal-container {
 	border-radius: var(--sf-radius-lg);
+}
+
+/* Custom dialog modals */
+.split-modal,
+.compress-modal,
+.watermark-modal,
+.password-modal,
+.page-number-modal {
+	border-radius: var(--sf-radius-lg);
+}
+
+/* ── Border radius: Custom inputs, selects, text fields ── */
+input[type="text"],
+input[type="number"],
+input[type="password"],
+input[type="email"],
+input[type="search"],
+input[type="url"],
+input[type="tel"],
+select,
+textarea {
+	border-radius: var(--sf-radius-sm) !important;
+}
+
+/* ── Border radius: Range sliders ── */
+input[type="range"] {
+	border-radius: var(--sf-radius-pill);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+	border-radius: 50%;
+}
+
+input[type="range"]::-moz-range-thumb {
+	border-radius: 50%;
+}
+
+/* ── Border radius: Toast notifications ── */
+.toast {
+	border-radius: var(--sf-radius-sm);
 }
 
 /* ── Border radius: Overflow/Tooltip ── */

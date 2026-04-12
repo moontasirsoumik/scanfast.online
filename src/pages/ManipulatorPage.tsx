@@ -9,6 +9,7 @@ import { addToast } from '@/stores/toast';
 import {
   loadFiles,
   exportAsPdf,
+  exportAsPdfA,
   exportPageAsImage,
   splitPdf,
   compressPages,
@@ -26,6 +27,16 @@ import {
   type PageNumberOptions
 } from '@/services/pdf';
 import { createZip } from '@/services/zip';
+import {
+  exportAsDocx,
+  exportAsPptx,
+  exportAsXlsx,
+  exportAsOdt,
+  exportAsOdp,
+  exportAsOds,
+  exportAsEpub,
+  splitTextPages,
+} from '@/services/office';
 import { processPage } from '@/services/filters';
 import Toolbar from '@/components/manipulator/Toolbar';
 import PageGrid from '@/components/manipulator/PageGrid';
@@ -788,14 +799,14 @@ export default function ManipulatorPage() {
       const state = useManipulatorStore.getState();
       const text = await extractText(state.pages);
       if (!text.trim()) {
-        addToast({ kind: 'warning', title: 'No text found', subtitle: 'PDF contains only images or no extractable text.' });
+        addToast({ kind: 'warning', title: 'No text found', subtitle: 'This PDF contains only scanned images — no readable text could be extracted. Try exporting as Word, PNG, or JPG instead.' });
         return;
       }
       const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
       downloadBlob(blob, 'scanfast-export.txt');
       addToast({ kind: 'success', title: 'Text exported', subtitle: 'Download started.' });
     } catch (err) {
-      addToast({ kind: 'error', title: 'Text extraction failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+      addToast({ kind: 'error', title: 'Text extraction failed', subtitle: err instanceof Error ? err.message : 'Could not extract text. Try exporting as an image instead.' });
     } finally {
       setLoading(false);
     }
@@ -831,59 +842,7 @@ export default function ManipulatorPage() {
       downloadBlob(blob, 'scanfast-export.html');
       addToast({ kind: 'success', title: 'HTML exported', subtitle: 'Download started.' });
     } catch (err) {
-      addToast({ kind: 'error', title: 'HTML export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
-    } finally {
-      setLoading(false);
-    }
-  }, [setLoading]);
-
-  // --- Export as WEBP ---
-  const handleExportWebp = useCallback(async () => {
-    const state = useManipulatorStore.getState();
-    if (state.pages.length === 0) return;
-    setLoading(true);
-    try {
-      for (let i = 0; i < state.pages.length; i++) {
-        const pngBlob = await exportPageAsImage(state.pages[i], 'png', 1);
-        const img = await createImageBitmap(pngBlob);
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        canvas.getContext('2d')!.drawImage(img, 0, 0);
-        const webpBlob = await new Promise<Blob>((resolve) => {
-          canvas.toBlob((b) => resolve(b!), 'image/webp', 0.9);
-        });
-        downloadBlob(webpBlob, `scanfast-page-${i + 1}.webp`);
-      }
-      addToast({ kind: 'success', title: 'WEBP exported', subtitle: `${state.pages.length} image(s) downloaded.` });
-    } catch (err) {
-      addToast({ kind: 'error', title: 'Export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
-    } finally {
-      setLoading(false);
-    }
-  }, [setLoading]);
-
-  // --- Export as BMP ---
-  const handleExportBmp = useCallback(async () => {
-    const state = useManipulatorStore.getState();
-    if (state.pages.length === 0) return;
-    setLoading(true);
-    try {
-      for (let i = 0; i < state.pages.length; i++) {
-        const pngBlob = await exportPageAsImage(state.pages[i], 'png', 1);
-        const img = await createImageBitmap(pngBlob);
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        canvas.getContext('2d')!.drawImage(img, 0, 0);
-        const bmpBlob = await new Promise<Blob>((resolve) => {
-          canvas.toBlob((b) => resolve(b ?? new Blob([canvas.toDataURL('image/bmp')])), 'image/bmp');
-        });
-        downloadBlob(bmpBlob, `scanfast-page-${i + 1}.bmp`);
-      }
-      addToast({ kind: 'success', title: 'BMP exported', subtitle: `${state.pages.length} image(s) downloaded.` });
-    } catch (err) {
-      addToast({ kind: 'error', title: 'Export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+      addToast({ kind: 'error', title: 'HTML export failed', subtitle: err instanceof Error ? err.message : 'Could not convert to HTML. Try exporting as PDF or image instead.' });
     } finally {
       setLoading(false);
     }
@@ -924,50 +883,13 @@ export default function ManipulatorPage() {
       const state = useManipulatorStore.getState();
       const text = await extractText(state.pages);
       if (!text.trim()) {
-        addToast({ kind: 'warning', title: 'No text found', subtitle: 'PDF contains only images or no extractable text.' });
+        addToast({ kind: 'warning', title: 'No text found', subtitle: 'This PDF contains only scanned images — no readable text to export. Try Word (.docx) or an image format instead.' });
         return;
       }
       const md = `# Exported Document\n\n${text}`;
       const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
       downloadBlob(blob, 'scanfast-export.md');
       addToast({ kind: 'success', title: 'Markdown exported', subtitle: 'Download started.' });
-    } catch (err) {
-      addToast({ kind: 'error', title: 'Export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
-    } finally {
-      setLoading(false);
-    }
-  }, [setLoading]);
-
-  // --- Export as GIF (single-frame per page, zipped) ---
-  const handleExportGif = useCallback(async () => {
-    const state = useManipulatorStore.getState();
-    if (state.pages.length === 0) return;
-    setLoading(true);
-    try {
-      for (let i = 0; i < state.pages.length; i++) {
-        const pngBlob = await exportPageAsImage(state.pages[i], 'png', 1);
-        // Re-encode as GIF is not natively supported; provide PNG renamed
-        downloadBlob(pngBlob, `scanfast-page-${i + 1}.gif`);
-      }
-      addToast({ kind: 'success', title: 'GIF exported', subtitle: `${state.pages.length} image(s) downloaded.` });
-    } catch (err) {
-      addToast({ kind: 'error', title: 'Export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
-    } finally {
-      setLoading(false);
-    }
-  }, [setLoading]);
-
-  // --- Export as TIFF (PNG in TIFF container, per page) ---
-  const handleExportTiff = useCallback(async () => {
-    const state = useManipulatorStore.getState();
-    if (state.pages.length === 0) return;
-    setLoading(true);
-    try {
-      for (let i = 0; i < state.pages.length; i++) {
-        const pngBlob = await exportPageAsImage(state.pages[i], 'png', 1);
-        downloadBlob(pngBlob, `scanfast-page-${i + 1}.tiff`);
-      }
-      addToast({ kind: 'success', title: 'TIFF exported', subtitle: `${state.pages.length} image(s) downloaded.` });
     } catch (err) {
       addToast({ kind: 'error', title: 'Export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
     } finally {
@@ -982,7 +904,7 @@ export default function ManipulatorPage() {
       const state = useManipulatorStore.getState();
       const text = await extractText(state.pages);
       if (!text.trim()) {
-        addToast({ kind: 'warning', title: 'No text found', subtitle: 'PDF contains only images or no extractable text.' });
+        addToast({ kind: 'warning', title: 'No text found', subtitle: 'This PDF contains only scanned images — no readable text to export. Try Word (.docx) or an image format instead.' });
         return;
       }
       const escaped = text.replace(/\\/g, '\\\\').replace(/\{/g, '\\{').replace(/\}/g, '\\}').replace(/\n/g, '\\par\n');
@@ -1004,7 +926,7 @@ export default function ManipulatorPage() {
       const state = useManipulatorStore.getState();
       const text = await extractText(state.pages);
       if (!text.trim()) {
-        addToast({ kind: 'warning', title: 'No text found', subtitle: 'PDF contains only images or no extractable text.' });
+        addToast({ kind: 'warning', title: 'No text found', subtitle: 'This PDF contains only scanned images — no readable text to export. Try Word (.docx) or an image format instead.' });
         return;
       }
       const pages = text.split(/---\s*Page\s+\d+\s*---/i).filter((s) => s.trim());
@@ -1027,7 +949,7 @@ export default function ManipulatorPage() {
       const state = useManipulatorStore.getState();
       const text = await extractText(state.pages);
       if (!text.trim()) {
-        addToast({ kind: 'warning', title: 'No text found', subtitle: 'PDF contains only images or no extractable text.' });
+        addToast({ kind: 'warning', title: 'No text found', subtitle: 'This PDF contains only scanned images — no readable text to export. Try Word (.docx) or an image format instead.' });
         return;
       }
       const pages = text.split(/---\s*Page\s+\d+\s*---/i).filter((s) => s.trim());
@@ -1053,7 +975,7 @@ export default function ManipulatorPage() {
       const state = useManipulatorStore.getState();
       const text = await extractText(state.pages);
       if (!text.trim()) {
-        addToast({ kind: 'warning', title: 'No text found', subtitle: 'PDF contains only images or no extractable text.' });
+        addToast({ kind: 'warning', title: 'No text found', subtitle: 'This PDF contains only scanned images — no readable text to export. Try Word (.docx) or an image format instead.' });
         return;
       }
       const pages = text.split(/---\s*Page\s+\d+\s*---/i).filter((s) => s.trim());
@@ -1065,6 +987,148 @@ export default function ManipulatorPage() {
       addToast({ kind: 'success', title: 'CSV exported', subtitle: 'Download started.' });
     } catch (err) {
       addToast({ kind: 'error', title: 'CSV export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as DOCX ---
+  const handleExportDocx = useCallback(async () => {
+    const state = useManipulatorStore.getState();
+    if (state.pages.length === 0) return;
+    setLoading(true);
+    try {
+      const blob = await exportAsDocx(state.pages);
+      downloadBlob(blob, 'scanfast-export.docx');
+      addToast({ kind: 'success', title: 'Word exported', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Word export failed', subtitle: err instanceof Error ? err.message : 'Could not convert to DOCX. Try exporting as PDF or image instead.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as PPTX ---
+  const handleExportPptx = useCallback(async () => {
+    const state = useManipulatorStore.getState();
+    if (state.pages.length === 0) return;
+    setLoading(true);
+    try {
+      const blob = await exportAsPptx(state.pages);
+      downloadBlob(blob, 'scanfast-export.pptx');
+      addToast({ kind: 'success', title: 'PowerPoint exported', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'PowerPoint export failed', subtitle: err instanceof Error ? err.message : 'Could not convert to PPTX. Try exporting as PDF or image instead.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as XLSX ---
+  const handleExportXlsx = useCallback(async () => {
+    setLoading(true);
+    try {
+      const state = useManipulatorStore.getState();
+      const text = await extractText(state.pages);
+      if (!text.trim()) {
+        addToast({ kind: 'warning', title: 'No text found', subtitle: 'This PDF contains only scanned images — no readable text to put in a spreadsheet. Try exporting as an image instead.' });
+        return;
+      }
+      const pageTexts = splitTextPages(text);
+      const blob = await exportAsXlsx(pageTexts);
+      downloadBlob(blob, 'scanfast-export.xlsx');
+      addToast({ kind: 'success', title: 'Excel exported', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Excel export failed', subtitle: err instanceof Error ? err.message : 'Could not convert to XLSX.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as ODT ---
+  const handleExportOdt = useCallback(async () => {
+    const state = useManipulatorStore.getState();
+    if (state.pages.length === 0) return;
+    setLoading(true);
+    try {
+      const blob = await exportAsOdt(state.pages);
+      downloadBlob(blob, 'scanfast-export.odt');
+      addToast({ kind: 'success', title: 'Writer exported', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Writer export failed', subtitle: err instanceof Error ? err.message : 'Could not convert to ODT. Try exporting as PDF or image instead.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as ODP ---
+  const handleExportOdp = useCallback(async () => {
+    const state = useManipulatorStore.getState();
+    if (state.pages.length === 0) return;
+    setLoading(true);
+    try {
+      const blob = await exportAsOdp(state.pages);
+      downloadBlob(blob, 'scanfast-export.odp');
+      addToast({ kind: 'success', title: 'Impress exported', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Impress export failed', subtitle: err instanceof Error ? err.message : 'Could not convert to ODP. Try exporting as PDF or image instead.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as ODS ---
+  const handleExportOds = useCallback(async () => {
+    setLoading(true);
+    try {
+      const state = useManipulatorStore.getState();
+      const text = await extractText(state.pages);
+      if (!text.trim()) {
+        addToast({ kind: 'warning', title: 'No text found', subtitle: 'This PDF contains only scanned images — no readable text to put in a spreadsheet. Try exporting as an image instead.' });
+        return;
+      }
+      const pageTexts = splitTextPages(text);
+      const blob = await exportAsOds(pageTexts);
+      downloadBlob(blob, 'scanfast-export.ods');
+      addToast({ kind: 'success', title: 'Calc exported', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'Calc export failed', subtitle: err instanceof Error ? err.message : 'Could not convert to ODS.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as EPUB ---
+  const handleExportEpub = useCallback(async () => {
+    setLoading(true);
+    try {
+      const state = useManipulatorStore.getState();
+      const text = await extractText(state.pages);
+      if (!text.trim()) {
+        addToast({ kind: 'warning', title: 'No text found', subtitle: 'This PDF contains only scanned images — no readable text to create an ebook. Try exporting as an image instead.' });
+        return;
+      }
+      const pageTexts = splitTextPages(text);
+      const blob = await exportAsEpub(pageTexts);
+      downloadBlob(blob, 'scanfast-export.epub');
+      addToast({ kind: 'success', title: 'EPUB exported', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'EPUB export failed', subtitle: err instanceof Error ? err.message : 'Could not convert to EPUB.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading]);
+
+  // --- Export as PDF/A ---
+  const handleExportPdfA = useCallback(async () => {
+    setLoading(true);
+    try {
+      const pdfBytes = await exportAsPdfA(useManipulatorStore.getState().pages);
+      const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      downloadBlob(blob, 'scanfast-export-pdfa.pdf');
+      addToast({ kind: 'success', title: 'PDF/A exported', subtitle: 'Download started.' });
+    } catch (err) {
+      addToast({ kind: 'error', title: 'PDF/A export failed', subtitle: err instanceof Error ? err.message : 'Unknown error' });
     } finally {
       setLoading(false);
     }
@@ -1512,7 +1576,7 @@ export default function ManipulatorPage() {
           {
             id: 'export-as',
             label: 'Export as…',
-            description: 'JPG, PNG, Text, HTML, and more.',
+            description: 'Word, PowerPoint, images, and more.',
             onSelect: () => setExportFormatSheetOpen(true),
           },
           {
@@ -1536,29 +1600,43 @@ export default function ManipulatorPage() {
         onClose={() => setExportFormatSheetOpen(false)}
         sections={[
           {
-            title: 'Images',
+            title: 'Microsoft Office',
             options: [
-              { id: 'fmt-jpg', label: 'JPG', description: 'Compressed JPEG — small file size.', onSelect: handleExportImages },
-              { id: 'fmt-png', label: 'PNG', description: 'Lossless — best for sharp text & graphics.', onSelect: handleExportPng },
-              { id: 'fmt-webp', label: 'WEBP', description: 'Modern format — smaller than PNG, high quality.', onSelect: handleExportWebp },
-              { id: 'fmt-svg', label: 'SVG', description: 'Scalable vector container.', onSelect: handleExportSvg },
-              { id: 'fmt-bmp', label: 'BMP', description: 'Uncompressed bitmap — maximum compatibility.', onSelect: handleExportBmp },
-              { id: 'fmt-gif', label: 'GIF', description: 'Legacy image format.', onSelect: handleExportGif },
-              { id: 'fmt-tiff', label: 'TIFF', description: 'High-fidelity — archival & printing.', onSelect: handleExportTiff },
+              { id: 'fmt-docx', label: 'Word (.docx)', description: 'Pages embedded as images in a Word document.', onSelect: handleExportDocx },
+              { id: 'fmt-pptx', label: 'PowerPoint (.pptx)', description: 'Each page becomes a slide.', onSelect: handleExportPptx },
+              { id: 'fmt-xlsx', label: 'Excel (.xlsx)', description: 'Extracted text in a spreadsheet.', onSelect: handleExportXlsx },
             ],
           },
           {
-            title: 'Documents',
+            title: 'Open Office',
             options: [
-              { id: 'fmt-html', label: 'HTML', description: 'Styled web page with extracted text.', onSelect: handleExportHtml },
-              { id: 'fmt-rtf', label: 'RTF', description: 'Rich Text — opens in Word, LibreOffice, Pages.', onSelect: handleExportRtf },
-              { id: 'fmt-md', label: 'Markdown', description: 'Lightweight formatted text.', onSelect: handleExportMarkdown },
+              { id: 'fmt-odt', label: 'Writer (.odt)', description: 'Pages embedded as images in an ODF document.', onSelect: handleExportOdt },
+              { id: 'fmt-odp', label: 'Impress (.odp)', description: 'Each page becomes a slide.', onSelect: handleExportOdp },
+              { id: 'fmt-ods', label: 'Calc (.ods)', description: 'Extracted text in a spreadsheet.', onSelect: handleExportOds },
             ],
           },
           {
-            title: 'Data & Text',
+            title: 'Text',
             options: [
               { id: 'fmt-txt', label: 'Plain Text (.txt)', description: 'Raw extracted text, no formatting.', onSelect: handleExportText },
+              { id: 'fmt-rtf', label: 'Rich Text (.rtf)', description: 'Opens in Word, LibreOffice, Pages.', onSelect: handleExportRtf },
+              { id: 'fmt-html', label: 'HTML (.html)', description: 'Styled web page with extracted text.', onSelect: handleExportHtml },
+            ],
+          },
+          {
+            title: 'Images',
+            options: [
+              { id: 'fmt-png', label: 'PNG (.png)', description: 'Lossless — best for sharp text & graphics.', onSelect: handleExportPng },
+              { id: 'fmt-jpg', label: 'JPG (.jpg)', description: 'Compressed JPEG — small file size.', onSelect: handleExportImages },
+              { id: 'fmt-svg', label: 'SVG (.svg)', description: 'Scalable vector container.', onSelect: handleExportSvg },
+            ],
+          },
+          {
+            title: 'Other',
+            options: [
+              { id: 'fmt-pdfa', label: 'PDF/A (.pdf)', description: 'PDF with archival metadata.', onSelect: handleExportPdfA },
+              { id: 'fmt-epub', label: 'EPUB (.epub)', description: 'Ebook format with extracted text.', onSelect: handleExportEpub },
+              { id: 'fmt-md', label: 'Markdown (.md)', description: 'Lightweight formatted text.', onSelect: handleExportMarkdown },
               { id: 'fmt-json', label: 'JSON', description: 'Structured page text as JSON.', onSelect: handleExportJson },
               { id: 'fmt-xml', label: 'XML', description: 'Structured page text as XML.', onSelect: handleExportXml },
               { id: 'fmt-csv', label: 'CSV', description: 'Page text in spreadsheet format.', onSelect: handleExportCsv },

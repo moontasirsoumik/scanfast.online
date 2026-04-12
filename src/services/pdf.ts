@@ -788,3 +788,24 @@ footer { margin-top: 2rem; color: #888; font-size: 0.75rem; text-align: center; 
 
 	return htmlParts.join('\n');
 }
+
+// ─── PDF/A ───────────────────────────────────────────────────────────
+
+/**
+ * Export pages as a PDF with archival metadata (best-effort PDF/A-1b).
+ * Adds required metadata fields. Full strict compliance requires ICC profiles
+ * and font embedding verification which is beyond client-side scope.
+ */
+export async function exportAsPdfA(pages: PageData[]): Promise<Uint8Array> {
+	const pdfBytes = await exportAsPdf(pages);
+	const pdfDoc = await PDFDocument.load(pdfBytes);
+
+	pdfDoc.setTitle('ScanFast Export');
+	pdfDoc.setAuthor('ScanFast.online');
+	pdfDoc.setCreator('ScanFast.online');
+	pdfDoc.setProducer('ScanFast.online (pdf-lib)');
+	pdfDoc.setCreationDate(new Date());
+	pdfDoc.setModificationDate(new Date());
+
+	return pdfDoc.save();
+}
