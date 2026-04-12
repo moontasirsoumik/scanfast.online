@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Loading, Tag } from '@carbon/react';
-import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowLeft, ArrowRight, Download, ChevronLeft, ChevronRight, Close, SettingsAdjust, Undo, Redo, Reset } from '@carbon/icons-react';
+import { Scan, Image as ImageIcon, DocumentPdf, Add, Crop, ArrowRight, Download, ChevronLeft, ChevronRight, Close, SettingsAdjust, Undo, Redo, Reset } from '@carbon/icons-react';
 import { useScannerStore, MAX_PAGES, type QuadCrop, type FilterType, type ScannedPage, type ImageAdjustments } from '@/stores/scanner';
 import { useManipulatorStore } from '@/stores/manipulator';
 import { addToast } from '@/stores/toast';
@@ -362,10 +362,6 @@ export default function ScannerPage() {
     const state = useScannerStore.getState();
     setView(state.pages.length > 0 ? 'gallery' : 'idle');
   }, [resetPreview, setView]);
-
-  const handleRetake = useCallback(() => {
-    handlePreviewClose();
-  }, [handlePreviewClose]);
 
   const handleToggleCrop = useCallback(() => {
     if (cropMode) {
@@ -1013,26 +1009,28 @@ export default function ScannerPage() {
             <div className="preview-actions-wrapper">
             <div className="preview-actions">
               <Button
+                className={!cropMode ? 'sf-action-active' : ''}
                 kind="ghost"
                 size="sm"
-                renderIcon={ArrowLeft}
-                iconDescription="Back"
-                aria-label="Back"
+                renderIcon={SettingsAdjust}
+                iconDescription="Adjustments"
+                aria-label="Adjustments"
                 hasIconOnly={isMobile}
-                onClick={handleRetake}
+                onClick={() => { if (cropMode) handleToggleCrop(); }}
               >
-                {!isMobile ? 'Back' : null}
+                {!isMobile ? 'Adjustments' : null}
               </Button>
               <Button
+                className={cropMode ? 'sf-action-active' : ''}
                 kind="ghost"
                 size="sm"
-                renderIcon={cropMode ? SettingsAdjust : Crop}
-                iconDescription={cropMode ? 'Filters' : 'Crop'}
-                aria-label={cropMode ? 'Filters' : 'Crop'}
+                renderIcon={Crop}
+                iconDescription="Crop"
+                aria-label="Crop"
                 hasIconOnly={isMobile}
-                onClick={handleToggleCrop}
+                onClick={() => { if (!cropMode) handleToggleCrop(); }}
               >
-                {!isMobile ? (cropMode ? 'Filters' : 'Crop') : null}
+                {!isMobile ? 'Crop' : null}
               </Button>
               <Button
                 kind="primary"
