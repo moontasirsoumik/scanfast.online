@@ -22,8 +22,29 @@ const DEFAULT_ADJUSTMENTS: ImageAdjustments = {
 /** Available image filter types */
 export type FilterType = 'original' | 'enhance' | 'document' | 'bw' | 'grayscale' | 'sharpen' | 'color' | 'warm' | 'cool' | 'fade' | 'vivid';
 
-/** Maximum pixel dimension for stored images (preserves small text at ~257 DPI on A4) */
-const MAX_IMAGE_DIMENSION = 3000;
+/** Maximum pixel dimension for stored images (preserves small text closer to print quality on A4) */
+const MAX_IMAGE_DIMENSION = 4096;
+
+interface ProcessedImageFormat {
+	mimeType: 'image/jpeg' | 'image/png';
+	quality?: number;
+}
+
+function getProcessedImageFormat(filter: FilterType): ProcessedImageFormat {
+	if (filter === 'document' || filter === 'bw' || filter === 'grayscale') {
+		return { mimeType: 'image/png' };
+	}
+
+	return { mimeType: 'image/jpeg', quality: 0.96 };
+}
+
+function canvasToDataUrl(canvas: HTMLCanvasElement, format: ProcessedImageFormat): string {
+	if (format.quality === undefined) {
+		return canvas.toDataURL(format.mimeType);
+	}
+
+	return canvas.toDataURL(format.mimeType, format.quality);
+}
 
 /** Load a Blob into an HTMLImageElement, ignoring EXIF orientation so manual rotation is correct */
 function loadImage(blob: Blob): Promise<HTMLImageElement> {
@@ -76,7 +97,7 @@ export async function downscaleBlob(blob: Blob): Promise<Blob> {
 	ctx.drawImage(bitmap, 0, 0, w, h);
 	bitmap.close();
 	return new Promise<Blob>((resolve) => {
-		canvas.toBlob((b) => resolve(b ?? blob), 'image/jpeg', 0.92);
+		canvas.toBlob((b) => resolve(b ?? blob), 'image/jpeg', 0.96);
 	});
 }
 
@@ -992,7 +1013,7 @@ export async function processPage(
 		ctx.putImageData(imgData, 0, 0);
 	}
 
-	const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+	const dataUrl = canvasToDataUrl(canvas, getProcessedImageFormat(filter));
 
 	// --- Step 4: Thumbnail ---
 	const thumbMaxWidth = 120;

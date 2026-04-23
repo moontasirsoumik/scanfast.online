@@ -7,15 +7,15 @@ interface PageThumbnailProps {
   page: PageData;
   index: number;
   selected: boolean;
-  selectMode: boolean;
   onClick: (e: React.MouseEvent) => void;
+  onToggleSelect: () => void;
   onDelete?: (id: string) => void;
   onLongPress?: () => void;
   onContextMenu?: (x: number, y: number) => void;
 }
 
 /** Thumbnail card for a single page with selection, delete, and long-press */
-export default function PageThumbnail({ page, index, selected, selectMode, onClick, onDelete, onLongPress, onContextMenu }: PageThumbnailProps) {
+export default function PageThumbnail({ page, index, selected, onClick, onToggleSelect, onDelete, onLongPress, onContextMenu }: PageThumbnailProps) {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFired = useRef(false);
   const touchPos = useRef({ x: 0, y: 0 });
@@ -52,6 +52,15 @@ export default function PageThumbnail({ page, index, selected, selectMode, onCli
     onDelete?.(page.id);
   }, [onDelete, page.id]);
 
+  const stopPointerPropagation = useCallback((e: React.PointerEvent | React.MouseEvent) => {
+    e.stopPropagation();
+  }, []);
+
+  const handleToggleSelect = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleSelect();
+  }, [onToggleSelect]);
+
   return (
     <div
       className={`thumb-card${selected ? ' selected' : ''}`}
@@ -74,14 +83,21 @@ export default function PageThumbnail({ page, index, selected, selectMode, onCli
         draggable={false}
       />
       <span className="page-badge">{index + 1}</span>
-      {selectMode && (
-        <span className={`select-check${selected ? ' checked' : ''}`}>
-          {selected && <Checkmark size={12} />}
-        </span>
-      )}
-      {onDelete && !selectMode && (
+      <button
+        type="button"
+        className={`select-check${selected ? ' checked' : ''}`}
+        onPointerDown={stopPointerPropagation}
+        onClick={handleToggleSelect}
+        aria-label={selected ? `Unselect page ${index + 1}` : `Select page ${index + 1}`}
+        aria-pressed={selected}
+      >
+        {selected && <Checkmark size={12} />}
+      </button>
+      {onDelete && (
         <button
+          type="button"
           className="delete-btn"
+          onPointerDown={stopPointerPropagation}
           onClick={handleDelete}
           aria-label={`Delete page ${index + 1}`}
         >

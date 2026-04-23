@@ -5,6 +5,7 @@
 
 /* --- Fixed top / scrollable middle / fixed bottom layout --- */
 .manipulator-layout {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: calc(100vh - 48px - var(--sf-mobile-nav-height, 0px));
@@ -105,6 +106,38 @@
   background: var(--cds-interactive, #0f62fe);
   transition: width 0.3s ease;
   min-width: 4%;
+}
+
+.manipulator-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: rgba(22, 22, 22, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.manipulator-loading-copy {
+  display: grid;
+  gap: 0.25rem;
+  text-align: center;
+  color: var(--cds-text-primary, #f4f4f4);
+}
+
+.manipulator-loading-copy strong {
+  font-family: var(--sf-font-heading);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.manipulator-loading-copy span {
+  font-family: var(--sf-font-body);
+  font-size: 0.875rem;
+  color: var(--cds-text-secondary, #c6c6c6);
 }
 
 .manipulator-preview-overlay {

@@ -52,6 +52,8 @@ export default function Toolbar({
   const atPageLimit = pageCount >= maxPages;
   const noSelection = selectedCount === 0;
   const noPages = pageCount === 0;
+  const selectionLabel = selectedCount > 0 ? 'Unselect All' : 'Select All';
+  const selectionDescription = selectedCount > 0 ? 'Unselect all pages' : 'Select all pages';
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -123,8 +125,8 @@ export default function Toolbar({
 
       <div className="toolbar-scroll" ref={scrollRef} onWheel={handleWheel}>
         <div className="toolbar-group">
-          <Button kind="ghost" size="sm" renderIcon={CheckboxChecked} iconDescription="Select all" disabled={noPages} onClick={onSelectAll}>
-            Select All
+          <Button kind="ghost" size="sm" renderIcon={CheckboxChecked} iconDescription={selectionDescription} disabled={noPages} onClick={onSelectAll}>
+            {selectionLabel}
           </Button>
         </div>
         <div className="toolbar-divider" />

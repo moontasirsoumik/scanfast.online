@@ -52,8 +52,8 @@ export async function startCamera(facing: 'user' | 'environment'): Promise<Media
 	const constraints: MediaStreamConstraints = {
 		video: {
 			facingMode: facing,
-			width: { ideal: 1920, min: 640 },
-			height: { ideal: 1080, min: 480 }
+			width: { ideal: 4032, min: 1280 },
+			height: { ideal: 3024, min: 720 }
 		},
 		audio: false
 	};
@@ -86,7 +86,7 @@ export async function captureFrame(video: HTMLVideoElement): Promise<Blob> {
 				else reject(new Error('Failed to capture frame as blob'));
 			},
 			'image/jpeg',
-			0.92
+			0.96
 		);
 	});
 }

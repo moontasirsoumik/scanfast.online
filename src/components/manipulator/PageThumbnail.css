@@ -69,7 +69,7 @@
 .select-check {
   position: absolute;
   top: 4px;
-  right: 4px;
+  left: 4px;
   width: 22px;
   height: 22px;
   border-radius: 50%;
@@ -78,11 +78,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
+  cursor: pointer;
+  padding: 0;
+  color: #fff;
 }
 
 .select-check.checked {
   border-color: var(--cds-interactive, #0f62fe);
   background: var(--cds-interactive, #0f62fe);
   color: #fff;
+}
+
+.select-check:hover {
+  border-color: var(--cds-interactive, #0f62fe);
 }

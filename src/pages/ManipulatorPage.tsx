@@ -75,7 +75,6 @@ export default function ManipulatorPage() {
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   const [exportFormatSheetOpen, setExportFormatSheetOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ open: boolean; x: number; y: number; pageId: string }>({ open: false, x: 0, y: 0, pageId: '' });
-  const [selectMode, setSelectMode] = useState(false);
   const [previewPageId, setPreviewPageId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -125,6 +124,12 @@ export default function ManipulatorPage() {
   const previewIndex = previewPageId ? pages.findIndex((page) => page.id === previewPageId) : -1;
   const previewPage = previewIndex >= 0 ? pages[previewIndex] : null;
   const previewOpen = previewPage !== null;
+  const selectionButtonLabel = selectedCount === 0
+    ? 'Select All'
+    : selectedCount === 1
+      ? 'Unselect (1)'
+      : `Unselect All (${selectedCount})`;
+  const selectionButtonIcon = selectedCount === 0 ? Checkbox : Close;
 
   useEffect(() => {
     document.title = 'PDF Tools — ScanFastOnline';
@@ -498,10 +503,6 @@ export default function ManipulatorPage() {
   }, [pages, previewIndex, previewOpen]);
 
   const handleSelect = useCallback((id: string, e: React.MouseEvent) => {
-    if (selectMode) {
-      toggleSelect(id, true);
-      return;
-    }
     if (e.shiftKey) {
       selectRange(id);
     } else if (e.ctrlKey || e.metaKey) {
@@ -510,24 +511,26 @@ export default function ManipulatorPage() {
       setPreviewPageId(id);
       setPreviewScale(1);
     }
-  }, [selectRange, toggleSelect, selectMode]);
+  }, [selectRange, toggleSelect]);
 
-  const handleToggleSelectMode = useCallback(() => {
-    if (selectMode) {
-      clearSelection();
+  const handleSelectionAction = useCallback(() => {
+    if (selectedCount === 0) {
+      if (previewOpen) {
+        closePreview();
+      }
+      selectAll();
+      return;
     }
-    if (previewOpen) {
+
+    clearSelection();
+  }, [clearSelection, closePreview, previewOpen, selectAll, selectedCount]);
+
+  const handleToggleSelection = useCallback((id: string) => {
+    if (previewOpen && previewPageId === id) {
       closePreview();
     }
-    setSelectMode((prev) => !prev);
-  }, [clearSelection, closePreview, previewOpen, selectMode]);
-
-  // Exit select mode when selection is cleared externally
-  useEffect(() => {
-    if (selectMode && selectedIds.size === 0) {
-      // Keep select mode on â€” user may want to select more
-    }
-  }, [selectMode, selectedIds.size]);
+    toggleSelect(id, true);
+  }, [closePreview, previewOpen, previewPageId, toggleSelect]);
 
   const handleDeleteSingle = useCallback((id: string) => {
     const snapshot = [...useManipulatorStore.getState().pages];
@@ -649,6 +652,7 @@ export default function ManipulatorPage() {
     try {
       const state = useManipulatorStore.getState();
       const snapshot = [...state.pages];
+      const selectionSnapshot = new Set(state.selectedIds);
       const ids = new Set(state.selectedIds);
       const oldSize = snapshot.filter((p) => ids.has(p.id)).reduce((s, p) => s + p.data.byteLength, 0);
       const result = await compressPages(state.pages, ids, quality);
@@ -657,8 +661,15 @@ export default function ManipulatorPage() {
 
       execute({
         description: `Compress ${ids.size} page(s)`,
-        execute: () => setPages(result),
-        undo: () => setPages(snapshot),
+        execute: () => {
+          setPages(result);
+          setSelectedIds(new Set(ids));
+        },
+        undo: () => {
+          setPages(snapshot);
+          setSelectedIds(selectionSnapshot);
+        },
+        suppressSuccessToast: true,
       });
 
       addToast({ kind: 'success', title: 'Compression complete', subtitle: `Reduced by ~${saved}%` });
@@ -667,7 +678,7 @@ export default function ManipulatorPage() {
     } finally {
       setLoading(false);
     }
-  }, [setLoading, execute, setPages]);
+  }, [setLoading, execute, setPages, setSelectedIds]);
 
   // --- Watermark ---
   const handleWatermark = useCallback(() => {
@@ -781,6 +792,7 @@ export default function ManipulatorPage() {
           description: `Unlock ${toAdd.length} page(s)`,
           execute: () => addPages(toAdd),
           undo: () => setPages(snapshot),
+          suppressSuccessToast: true,
         });
         addToast({ kind: 'success', title: 'PDF unlocked', subtitle: `${toAdd.length} page(s) loaded.` });
       }
@@ -1325,7 +1337,7 @@ export default function ManipulatorPage() {
                 onUnlock={handleUnlock}
                 onUndo={undo}
                 onRedo={redo}
-                onSelectAll={selectAll}
+                onSelectAll={handleSelectionAction}
               />
             </Column>
 
@@ -1347,7 +1359,7 @@ export default function ManipulatorPage() {
           </Grid>
         </div>
       ) : (
-        <div className="manipulator-layout">
+        <div className="manipulator-layout" aria-busy={isLoading}>
           <div className="manipulator-top">
             <section className="page-header">
               <div className="header-row">
@@ -1377,7 +1389,7 @@ export default function ManipulatorPage() {
               onUnlock={handleUnlock}
               onUndo={undo}
               onRedo={redo}
-              onSelectAll={selectAll}
+              onSelectAll={handleSelectionAction}
             />
 
             <div className="add-more-row">
@@ -1385,12 +1397,12 @@ export default function ManipulatorPage() {
                 Add More Pages
               </Button>
               <Button
-                kind={selectMode ? 'primary' : 'ghost'}
+                kind={selectedCount > 0 ? 'primary' : 'ghost'}
                 size="sm"
-                renderIcon={selectMode ? CheckboxCheckedFilled : Checkbox}
-                onClick={handleToggleSelectMode}
+                renderIcon={selectionButtonIcon}
+                onClick={handleSelectionAction}
               >
-                {selectMode ? `${selectedCount} Selected` : 'Select'}
+                {selectionButtonLabel}
               </Button>
             </div>
           </div>
@@ -1409,11 +1421,10 @@ export default function ManipulatorPage() {
             <PageGrid
               pages={pages}
               selectedIds={selectedIds}
-              selectMode={selectMode}
               onSelect={handleSelect}
+              onToggleSelect={handleToggleSelection}
               onReorder={handleReorder}
               onDelete={handleDeleteSingle}
-              onLongPress={(id: string) => { if (!selectMode) { setSelectMode(true); toggleSelect(id, true); } }}
               onContextMenu={handleContextMenu}
             />
           </div>
@@ -1441,6 +1452,16 @@ export default function ManipulatorPage() {
               Open in Scanner
             </Button>
           </div>
+
+          {isLoading && (
+            <div className="manipulator-loading-overlay" role="status" aria-live="polite">
+              <Loading active withOverlay={false} description="Processing pages" />
+              <div className="manipulator-loading-copy">
+                <strong>{loadProgress[1] > 0 ? `Processing ${loadProgress[0]} of ${loadProgress[1]}` : 'Working on your pages'}</strong>
+                <span>Please wait until the current action finishes.</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
