@@ -38,6 +38,68 @@ export function generatePageId(): string {
 	return crypto.randomUUID();
 }
 
+async function loadImageElement(blob: Blob): Promise<HTMLImageElement> {
+	const url = URL.createObjectURL(blob);
+	try {
+		return await new Promise<HTMLImageElement>((resolve, reject) => {
+			const image = new Image();
+			image.onload = () => resolve(image);
+			image.onerror = reject;
+			image.src = url;
+		});
+	} finally {
+		URL.revokeObjectURL(url);
+	}
+}
+
+async function canvasToBlob(
+	canvas: HTMLCanvasElement,
+	type: 'image/jpeg' | 'image/png',
+	quality?: number
+): Promise<Blob> {
+	return new Promise((resolve) => {
+		canvas.toBlob((blob) => resolve(blob!), type, quality);
+	});
+}
+
+async function addImagePageToPdf(outDoc: PDFDocument, page: PageData): Promise<void> {
+	const sourceMime = getMimeFromBytes(page.data);
+	const canEmbedWithoutRerender = page.rotation === 0 && (sourceMime === 'image/jpeg' || sourceMime === 'image/png');
+
+	if (canEmbedWithoutRerender) {
+		const embedded = sourceMime === 'image/png'
+			? await outDoc.embedPng(page.data)
+			: await outDoc.embedJpg(page.data);
+		const pdfPage = outDoc.addPage([embedded.width, embedded.height]);
+		pdfPage.drawImage(embedded, { x: 0, y: 0, width: embedded.width, height: embedded.height });
+		return;
+	}
+
+	const sourceBytes = page.data.slice();
+	const sourceBlob = new Blob([sourceBytes.buffer], { type: sourceMime });
+	const img = await loadImageElement(sourceBlob);
+	const isRotated90 = page.rotation === 90 || page.rotation === 270;
+	const dstW = isRotated90 ? img.height : img.width;
+	const dstH = isRotated90 ? img.width : img.height;
+
+	const canvas = document.createElement('canvas');
+	canvas.width = dstW;
+	canvas.height = dstH;
+	const ctx = canvas.getContext('2d')!;
+	ctx.translate(canvas.width / 2, canvas.height / 2);
+	ctx.rotate((page.rotation * Math.PI) / 180);
+	ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+	const exportMime: 'image/jpeg' | 'image/png' = sourceMime === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+	const exportBlob = await canvasToBlob(canvas, exportMime, exportMime === 'image/jpeg' ? 0.98 : undefined);
+	const exportBytes = new Uint8Array(await exportBlob.arrayBuffer());
+	const embedded = exportMime === 'image/png'
+		? await outDoc.embedPng(exportBytes)
+		: await outDoc.embedJpg(exportBytes);
+	const pdfPage = outDoc.addPage([dstW, dstH]);
+	pdfPage.drawImage(embedded, { x: 0, y: 0, width: dstW, height: dstH });
+}
+
 /**
  * Load a PDF file and extract pages with thumbnails.
  * @param file - The PDF file to load
@@ -236,36 +298,7 @@ export async function exportAsPdf(pages: PageData[]): Promise<Uint8Array> {
 			copiedPage.setRotation(degrees(copiedPage.getRotation().angle + page.rotation));
 			outDoc.addPage(copiedPage);
 		} else {
-			// For images, pre-render with rotation to canvas, then embed as JPEG
-			const imgBlob = new Blob([page.data.buffer as ArrayBuffer]);
-			const url = URL.createObjectURL(imgBlob);
-			const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-				const image = new Image();
-				image.onload = () => resolve(image);
-				image.onerror = reject;
-				image.src = url;
-			});
-			URL.revokeObjectURL(url);
-
-			const isRotated90 = page.rotation === 90 || page.rotation === 270;
-			const dstW = isRotated90 ? img.height : img.width;
-			const dstH = isRotated90 ? img.width : img.height;
-
-			const canvas = document.createElement('canvas');
-			canvas.width = dstW;
-			canvas.height = dstH;
-			const ctx = canvas.getContext('2d')!;
-			ctx.translate(canvas.width / 2, canvas.height / 2);
-			ctx.rotate((page.rotation * Math.PI) / 180);
-			ctx.drawImage(img, -img.width / 2, -img.height / 2);
-
-			const jpegBlob = await new Promise<Blob>((resolve) => {
-				canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.92);
-			});
-			const jpegBytes = new Uint8Array(await jpegBlob.arrayBuffer());
-			const embedded = await outDoc.embedJpg(jpegBytes);
-			const pdfPage = outDoc.addPage([dstW, dstH]);
-			pdfPage.drawImage(embedded, { x: 0, y: 0, width: dstW, height: dstH });
+			await addImagePageToPdf(outDoc, page);
 		}
 	}
 

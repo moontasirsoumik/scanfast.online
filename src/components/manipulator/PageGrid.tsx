@@ -21,8 +21,8 @@ import './PageGrid.css';
 interface PageGridProps {
   pages: PageData[];
   selectedIds: Set<string>;
-  selectMode: boolean;
   onSelect: (id: string, e: React.MouseEvent) => void;
+  onToggleSelect: (id: string) => void;
   onReorder: (newPages: PageData[]) => void;
   onDelete?: (id: string) => void;
   onLongPress?: (id: string) => void;
@@ -33,14 +33,14 @@ interface SortableItemProps {
   page: PageData;
   index: number;
   selected: boolean;
-  selectMode: boolean;
   onSelect: (id: string, e: React.MouseEvent) => void;
+  onToggleSelect: (id: string) => void;
   onDelete?: (id: string) => void;
   onLongPress?: (id: string) => void;
   onContextMenu?: (id: string, x: number, y: number) => void;
 }
 
-function SortableItem({ page, index, selected, selectMode, onSelect, onDelete, onLongPress, onContextMenu }: SortableItemProps) {
+function SortableItem({ page, index, selected, onSelect, onToggleSelect, onDelete, onLongPress, onContextMenu }: SortableItemProps) {
   const {
     attributes,
     listeners,
@@ -62,8 +62,8 @@ function SortableItem({ page, index, selected, selectMode, onSelect, onDelete, o
         page={page}
         index={index}
         selected={selected}
-        selectMode={selectMode}
         onClick={(e) => onSelect(page.id, e)}
+        onToggleSelect={() => onToggleSelect(page.id)}
         onDelete={onDelete}
         onLongPress={() => onLongPress?.(page.id)}
         onContextMenu={(x, y) => onContextMenu?.(page.id, x, y)}
@@ -73,7 +73,7 @@ function SortableItem({ page, index, selected, selectMode, onSelect, onDelete, o
 }
 
 /** Responsive sortable grid of page thumbnails with @dnd-kit drag-drop reorder */
-export default function PageGrid({ pages, selectedIds, selectMode, onSelect, onReorder, onDelete, onLongPress, onContextMenu }: PageGridProps) {
+export default function PageGrid({ pages, selectedIds, onSelect, onToggleSelect, onReorder, onDelete, onLongPress, onContextMenu }: PageGridProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
@@ -99,8 +99,8 @@ export default function PageGrid({ pages, selectedIds, selectMode, onSelect, onR
               page={page}
               index={i}
               selected={selectedIds.has(page.id)}
-              selectMode={selectMode}
               onSelect={onSelect}
+              onToggleSelect={onToggleSelect}
               onDelete={onDelete}
               onLongPress={onLongPress}
               onContextMenu={onContextMenu}

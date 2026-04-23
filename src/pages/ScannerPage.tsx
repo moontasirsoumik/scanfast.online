@@ -483,7 +483,8 @@ export default function ScannerPage() {
         const page = state.pages[i];
         const resp = await fetch(page.processedDataUrl);
         const blob = await resp.blob();
-        downloadBlob(blob, `scanfast-page-${i + 1}.jpg`);
+        const extension = blob.type === 'image/png' ? 'png' : 'jpg';
+        downloadBlob(blob, `scanfast-page-${i + 1}.${extension}`);
       }
       if (state.pages.length >= 3) {
         addToast({ kind: 'success', title: 'Images exported', subtitle: `${state.pages.length} images downloaded.` });
@@ -546,7 +547,8 @@ export default function ScannerPage() {
       for (const page of state.pages) {
         const resp = await fetch(page.processedDataUrl);
         const blob = await resp.blob();
-        files.push(new File([blob], `scan-${page.id}.jpg`, { type: 'image/jpeg' }));
+        const extension = blob.type === 'image/png' ? 'png' : 'jpg';
+        files.push(new File([blob], `scan-${page.id}.${extension}`, { type: blob.type || 'image/jpeg' }));
       }
 
       useManipulatorStore.getState().setLoading(true);

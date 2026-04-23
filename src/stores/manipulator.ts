@@ -74,7 +74,7 @@ export const useManipulatorStore = create<ManipulatorStore>((set, get) => ({
 			return { pages: newPages };
 		}),
 
-	rotatePages: (ids, degreesVal = 90) =>
+	rotatePages: (ids, degreesVal = 270) =>
 		set((state) => ({
 			pages: state.pages.map((p) =>
 				ids.has(p.id) ? { ...p, rotation: (p.rotation + degreesVal) % 360 } : p

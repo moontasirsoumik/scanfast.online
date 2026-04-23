@@ -1,5 +1,6 @@
 /** @module History store — undo/redo command pattern using Zustand. */
 import { create } from 'zustand';
+import { addToast } from '@/stores/toast';
 
 /** A command that can be undone */
 export interface Command {
@@ -9,6 +10,8 @@ export interface Command {
 	execute(): void;
 	/** Undo the command */
 	undo(): void;
+	/** Skip the default success toast when the caller shows a custom one */
+	suppressSuccessToast?: boolean;
 }
 
 const MAX_HISTORY = 20;
@@ -32,6 +35,9 @@ export const useHistoryStore = create<HistoryStore>((set, get) => ({
 
 	execute: (command) => {
 		command.execute();
+		if (!command.suppressSuccessToast) {
+			addToast({ kind: 'success', title: 'Action complete', subtitle: command.description });
+		}
 		set((state) => {
 			const newStack = [...state.undoStack, command].slice(-MAX_HISTORY);
 			return {
@@ -48,6 +54,7 @@ export const useHistoryStore = create<HistoryStore>((set, get) => ({
 		if (undoStack.length === 0) return;
 		const command = undoStack[undoStack.length - 1];
 		command.undo();
+		addToast({ kind: 'info', title: 'Action undone', subtitle: command.description });
 		set((state) => {
 			const newUndo = state.undoStack.slice(0, -1);
 			const newRedo = [...state.redoStack, command];
@@ -65,6 +72,7 @@ export const useHistoryStore = create<HistoryStore>((set, get) => ({
 		if (redoStack.length === 0) return;
 		const command = redoStack[redoStack.length - 1];
 		command.execute();
+		addToast({ kind: 'info', title: 'Action redone', subtitle: command.description });
 		set((state) => {
 			const newRedo = state.redoStack.slice(0, -1);
 			const newUndo = [...state.undoStack, command].slice(-MAX_HISTORY);
